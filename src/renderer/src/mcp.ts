@@ -41,8 +41,8 @@ import { hexToRgb, nearestIndices, shadeRamp } from '../../core/color'
 import { nearestIndex, PALETTE_NAMES, paletteToHex } from '../../core/palette'
 import { EditTransfer, TransferMode } from '../../core/propagate'
 import { encodeDc6 } from '../../core/dc6'
-import { bestCellAnchor, encodeDcc } from '../../core/dcc'
-import { dccPath } from '../../core/catalog'
+import { bestCellAnchor } from '../../core/dcc'
+import { encodeLayerFile, layerPath } from '../../core/unitLayer'
 import { encodeDs1 } from '../../core/ds1'
 import { encodeDt1 } from '../../core/dt1'
 import { indexTiles, renderMap } from '../../core/mapRender'
@@ -625,10 +625,10 @@ const tools: Record<string, (a: Args) => Promise<Content[]> | Content[]> = {
     else {
       for (const l of d.layers) {
         if (!l.sprite || (!l.dirty && !a.all_parts)) continue
-        for (const dd of l.sprite.frames) violations += bestCellAnchor(dd).violations
+        if (l.format === 'dcc') for (const dd of l.sprite.frames) violations += bestCellAnchor(dd).violations
         files.push({
-          rel: dccPath({ base: d.unit.base, token: d.unit.token }, COMPOSITS[l.composit], l.armtype, d.mode, l.weaponClass),
-          data: encodeDcc(l.sprite, { palette: palette(), frameMeta: l.frameMeta ?? undefined })
+          rel: layerPath({ base: d.unit.base, token: d.unit.token }, COMPOSITS[l.composit], l.armtype, d.mode, l.weaponClass, l.format),
+          data: encodeLayerFile(l.sprite, l.format, { palette: palette(), frameMeta: l.frameMeta, dc6Meta: l.dc6Meta })
         })
       }
       if (a.include_cof) {

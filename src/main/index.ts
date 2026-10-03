@@ -5,6 +5,7 @@ import { MpqVfs } from '../core/mpq'
 import { buildCatalog, Catalog } from '../core/catalog'
 import { defaultGameLocation, GameLocation, openGameVfs } from './nodeMpq'
 import { DEFAULT_MCP_PORT, McpServer, ToolResult } from './mcpServer'
+import { appVersion, registerUpdater } from './updater'
 
 interface Settings {
   location: GameLocation
@@ -121,7 +122,7 @@ async function callRenderer(name: string, args: Record<string, unknown>): Promis
   })
 }
 
-const mcp = new McpServer(() => mainWindow, callRenderer, app.getVersion())
+const mcp = new McpServer(() => mainWindow, callRenderer, appVersion())
 
 /** How an MCP client launches the stdio bridge (for clients that only speak stdio, like Claude Desktop). */
 function bridgeLaunch(): { command: string; args: string[]; env: Record<string, string> } {
@@ -289,6 +290,7 @@ app.whenReady().then(() => {
   })
 
   ipcMain.handle('shell:reveal', (_e, p: string) => shell.showItemInFolder(p))
+  registerUpdater(() => mainWindow)
 
   ipcMain.on('mcp:ready', () => {
     whenRendererReady()

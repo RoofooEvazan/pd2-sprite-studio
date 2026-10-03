@@ -24,7 +24,15 @@ const api = {
     ipcRenderer.on('mcp:call', (_e, msg) => handler(msg))
     ipcRenderer.send('mcp:ready')
   },
-  mcpResult: (msg: { id: number; result: unknown }) => ipcRenderer.send('mcp:result', msg)
+  mcpResult: (msg: { id: number; result: unknown }) => ipcRenderer.send('mcp:result', msg),
+  appInfo: () => ipcRenderer.invoke('app:info'),
+  checkUpdate: () => ipcRenderer.invoke('update:check'),
+  installUpdate: () => ipcRenderer.invoke('update:install'),
+  onUpdateProgress: (handler: (p: { done: number; total: number | null }) => void) => {
+    ipcRenderer.removeAllListeners('update:progress')
+    ipcRenderer.on('update:progress', (_e, p) => handler(p))
+  },
+  openRepoPage: (url: string) => ipcRenderer.invoke('shell:openRepo', url)
 }
 
 contextBridge.exposeInMainWorld('api', api)

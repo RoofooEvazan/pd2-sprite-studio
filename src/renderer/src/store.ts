@@ -1,9 +1,10 @@
 import { useSyncExternalStore } from 'react'
-import { api, GameStatus, prefetch, readGameFile } from './api'
-import { Catalog, ItemEntry, UnitEntry, cofPath, dccPath } from '../../core/catalog'
+import { api, GameStatus, prefetch, readGameFile, UpdateCheck } from './api'
+import { Catalog, ItemEntry, UnitEntry, cofPath } from '../../core/catalog'
+import { decodeLayerFile, LayerFormat, layerFormat, layerPath } from '../../core/unitLayer'
 import { Cof, COMPOSITS, decodeAnimData, decodeCof, AnimDataRecord, animFps } from '../../core/cof'
 import { decodeDc6, Dc6Meta } from '../../core/dc6'
-import { decodeDcc, DccFrameMeta } from '../../core/dcc'
+import { DccFrameMeta } from '../../core/dcc'
 import { COLORMAP_FILES, colormapPath, Palette, PALETTE_NAMES, palettePath, parsePalDat } from '../../core/palette'
 import { cloneFrame, cloneSprite, expandFrame, Frame, Sprite, trimFrame } from '../../core/sprite'
 import { mirrorDir } from '../../core/edit'
@@ -78,6 +79,9 @@ export interface AnimLayer {
   path: string
   sprite: Sprite | null
   frameMeta: DccFrameMeta[][] | null
+  /** DCC for most units; DC6 for e.g. Mephisto. Exports keep the format. */
+  format: LayerFormat
+  dc6Meta: Dc6Meta | null
   original: Sprite | null
   visible: boolean
   dirty: boolean
@@ -166,6 +170,9 @@ export interface State {
   recent: RecentEntry[]
   /** open the 3D render import dialog, targeting this body part */
   renderImport: { composit: number } | null
+  /** a newer release found by the startup check */
+  update: UpdateCheck | null
+  showUpdate: boolean
 }
 
 export type Screen = 'home' | 'chars' | 'monsters' | 'objects' | 'items' | 'editor' | '3d' | 'tiles'
@@ -219,7 +226,9 @@ const initial: State = {
   showPreview: true,
   playing: false,
   recent: loadRecent(),
-  renderImport: null
+  renderImport: null,
+  update: null,
+  showUpdate: false
 }
 
 function loadRecent(): RecentEntry[] {
@@ -395,20 +404,34 @@ export function defaultArmtype(unit: UnitEntry, comp: string, mode: string, wcla
   return candidates[0]
 }
 
+/** The catalog entry for a layer's source unit (it may come from another unit than the open one). */
+function unitOf(src: { base: string; token: string }): UnitEntry | undefined {
+  return state.catalog?.units.find((u) => u.base === src.base && u.token === src.token)
+}
+
+/** Path of a part graphic in whichever format (DCC/DC6) the source unit uses for it. */
+export function partPath(src: { base: string; token: string }, comp: string, armtype: string, mode: string, wclass: string): string {
+  return layerPath(src, comp, armtype, mode, wclass, layerFormat(unitOf(src), comp, armtype, mode, wclass))
+}
+
 async function loadLayerSprite(layer: AnimLayer, mode: string): Promise<void> {
-  layer.path = dccPath(layer.src, COMPOSITS[layer.composit], layer.armtype, mode, layer.weaponClass)
+  const comp = COMPOSITS[layer.composit]
+  layer.format = layerFormat(unitOf(layer.src), comp, layer.armtype, mode, layer.weaponClass)
+  layer.path = layerPath(layer.src, comp, layer.armtype, mode, layer.weaponClass, layer.format)
   const data = layer.armtype ? await readGameFile(layer.path) : null
   if (!data) {
     layer.sprite = null
     layer.original = null
     layer.frameMeta = null
+    layer.dc6Meta = null
     layer.missing = true
     return
   }
   try {
-    const dcc = decodeDcc(data)
-    layer.sprite = { directions: dcc.directions, framesPerDir: dcc.framesPerDir, frames: dcc.frames }
-    layer.frameMeta = dcc.frameMeta
+    const dec = decodeLayerFile(data, layer.format)
+    layer.sprite = dec.sprite
+    layer.frameMeta = dec.frameMeta
+    layer.dc6Meta = dec.dc6Meta
     layer.original = cloneSprite(layer.sprite)
     layer.missing = false
   } catch (e) {
@@ -442,13 +465,15 @@ export async function openAnim(unit: UnitEntry, mode: string, wclass: string, ke
       path: '',
       sprite: null,
       frameMeta: null,
+      format: 'dcc' as LayerFormat,
+      dc6Meta: null,
       original: null,
       visible: true,
       dirty: false,
       missing: false
     }
   })
-  await prefetch(layers.filter((l) => !l.dirty && l.armtype).map((l) => dccPath(l.src, COMPOSITS[l.composit], l.armtype, mode, l.weaponClass)))
+  await prefetch(layers.filter((l) => !l.dirty && l.armtype).map((l) => partPath(l.src, COMPOSITS[l.composit], l.armtype, mode, l.weaponClass)))
   await Promise.all(layers.filter((l) => !l.dirty).map((l) => loadLayerSprite(l, mode)))
   const anim = state.animData?.get(`${unit.token}${mode}${wclass}`.toUpperCase()) ?? null
   const prev = state.doc?.kind === 'anim' ? state.doc : null
@@ -503,7 +528,9 @@ export function createBlankLayer(composit: number, armtype: string): void {
   const code = armtype.trim().toUpperCase()
   if (!/^[A-Z0-9]{1,3}$/.test(code)) return toast('Armtype codes are 1–3 letters/digits, e.g. LIT, MED, or a custom code like XYZ.')
   layer.armtype = code
-  layer.path = dccPath(layer.src, COMPOSITS[composit], code, d.mode, layer.weaponClass)
+  layer.format = 'dcc'
+  layer.dc6Meta = null
+  layer.path = layerPath(layer.src, COMPOSITS[composit], code, d.mode, layer.weaponClass)
   layer.sprite = {
     directions: d.cof.directions,
     framesPerDir: d.cof.framesPerDir,
@@ -526,7 +553,7 @@ export function setExportArmtype(composit: number, armtype: string): void {
   const code = armtype.trim().toUpperCase()
   if (!layer || !/^[A-Z0-9]{1,3}$/.test(code)) return
   layer.armtype = code
-  layer.path = dccPath({ base: d.unit.base, token: d.unit.token }, COMPOSITS[composit], code, d.mode, layer.weaponClass)
+  layer.path = layerPath({ base: d.unit.base, token: d.unit.token }, COMPOSITS[composit], code, d.mode, layer.weaponClass, layer.format)
   layer.dirty = true
   setState({ doc: { ...d }, version: state.version + 1 })
 }
@@ -540,7 +567,9 @@ export function setLayerSprite(composit: number, sprite: Sprite, armtype: string
   if (!layer || !/^[A-Z0-9]{1,3}$/.test(code)) return toast('Style codes are 1–3 letters or digits, e.g. NEW.')
   layer.armtype = code
   layer.src = { base: d.unit.base, token: d.unit.token }
-  layer.path = dccPath(layer.src, COMPOSITS[composit], code, d.mode, layer.weaponClass)
+  layer.format = 'dcc'
+  layer.dc6Meta = null
+  layer.path = layerPath(layer.src, COMPOSITS[composit], code, d.mode, layer.weaponClass)
   if (!layer.original) layer.original = { ...sprite, frames: sprite.frames.map((dir) => dir.map(() => ({ width: 0, height: 0, offsetX: 0, offsetY: 0, pixels: new Uint8Array(0) }))) }
   layer.sprite = sprite
   layer.frameMeta = null

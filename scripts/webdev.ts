@@ -122,6 +122,13 @@ const handlers: Record<string, (...a: never[]) => unknown> = {
         : []
     return { name: path.basename(p), data: new Uint8Array(fs.readFileSync(p)), siblings }
   },
+  // Update stand-ins: the harness is never updated in place
+  appInfo: () => ({ version: JSON.parse(fs.readFileSync('package.json', 'utf8')).version, repoUrl: 'https://github.com/RoofooEvazan/pd2-sprite-studio', packaged: false }),
+  checkUpdate: () => ({ current: JSON.parse(fs.readFileSync('package.json', 'utf8')).version, latest: null, canInstall: false }),
+  installUpdate: () => {
+    throw new Error('The browser test harness cannot install updates')
+  },
+  openRepoPage: () => null,
   mcpInfo: () => harnessMcpInfo(),
   mcpConfigure: (cfg: { enabled: boolean }) => {
     harnessMcpOn = cfg.enabled

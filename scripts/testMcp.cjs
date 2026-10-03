@@ -66,6 +66,9 @@ async function main() {
     check(!recol.isError, 'recolor_material: ' + textOf(recol).slice(0, 80))
     const exp = await call('export_pd2')
     check(!exp.isError && fs.existsSync(path.join(exportRoot, 'data', 'global', 'items', 'invcap.dc6')), 'export_pd2 writes invcap.dc6')
+    // Units whose parts are DC6 (not DCC) must open too
+    const meph = await call('open_animation', { token: 'MP', base: 'monsters', mode: 'NU', discard_changes: true })
+    check(!meph.isError && /TR style LIT(?! \(no graphic\))/.test(textOf(meph)) && meph.content.some((c) => c.type === 'image' && c.data.length > 5000), 'open_animation opens Mephisto (DC6 parts)')
     const shot = await rpc('tools/call', { name: 'screenshot_app', arguments: {} })
     check(shot.result.content[0]?.type === 'image' && shot.result.content[0].data.length > 10000, 'screenshot_app returns the window')
 

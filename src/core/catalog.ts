@@ -11,8 +11,10 @@ export interface UnitEntry {
   modes: Record<string, string[]>
   /** composit -> armtypes that have at least one DCC */
   armtypes: Record<string, string[]>
-  /** every DCC stem (without token prefix), e.g. "HDLITNUHTH", upper-case */
+  /** every part-graphic stem (without token prefix), e.g. "HDLITNUHTH", upper-case (DCC or DC6) */
   dccs: string[]
+  /** the stems stored as DC6 instead of DCC (e.g. Mephisto's parts) */
+  dc6: string[]
 }
 
 export type ItemKind = 'weapon' | 'armor' | 'misc' | 'unique' | 'set' | 'other'
@@ -125,7 +127,7 @@ export function buildCatalog(files: string[], readTxt: (name: string) => Uint8Ar
     const key = `${base}/${token}`
     let u = unitMap.get(key)
     if (!u) {
-      u = { base, token, label: token, modes: {}, armtypes: {}, dccs: [] }
+      u = { base, token, label: token, modes: {}, armtypes: {}, dccs: [], dc6: [] }
       unitMap.set(key, u)
     }
     return u
@@ -133,7 +135,7 @@ export function buildCatalog(files: string[], readTxt: (name: string) => Uint8Ar
   const dc6Files: string[] = []
   const seen = new Set<string>()
   const cofRe = /^data\\global\\(chars|monsters|objects)\\([^\\]+)\\cof\\([^\\]+)\.cof$/i
-  const dccRe = /^data\\global\\(chars|monsters|objects)\\([^\\]+)\\([^\\]+)\\([^\\]+)\.dcc$/i
+  const dccRe = /^data\\global\\(chars|monsters|objects)\\([^\\]+)\\([^\\]+)\\([^\\]+)\.(dcc|dc6)$/i
   for (const raw of files) {
     const f = raw.replace(/\//g, '\\')
     const key = f.toLowerCase()
@@ -160,7 +162,8 @@ export function buildCatalog(files: string[], readTxt: (name: string) => Uint8Ar
       if (rest.length < 6) continue
       const armtype = rest.substring(0, rest.length - 5)
       const u = getUnit(m[1].toLowerCase() as UnitBase, token)
-      u.dccs.push(comp + rest)
+      if (!u.dccs.includes(comp + rest)) u.dccs.push(comp + rest)
+      if (m[5].toLowerCase() === 'dc6' && !u.dc6.includes(comp + rest)) u.dc6.push(comp + rest)
       const list = (u.armtypes[comp] ??= [])
       if (!list.includes(armtype)) list.push(armtype)
       continue

@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
-import { IconSettings } from '@tabler/icons-react'
+import { IconDownload, IconRefresh, IconSettings } from '@tabler/icons-react'
 import { TransferDialog } from './components/TransferDialog'
 import { ExportDialog } from './components/ExportDialog'
 import { RampDialog } from './components/RampDialog'
 import { OutlineDialog } from './components/OutlineDialog'
 import { RenderImportDialog } from './components/RenderImportDialog'
+import { startUpdateCheck, UpdateDialog } from './components/UpdateDialog'
 import { Editor } from './editor/Editor'
 import { Home } from './screens/Home'
 import { UnitPicker } from './screens/UnitPicker'
@@ -207,6 +208,30 @@ function McpSettings() {
   )
 }
 
+function UpdatesSection() {
+  const [version, setVersion] = useState('')
+  const update = useStore((s) => s.update)
+  useEffect(() => {
+    api.appInfo().then((i) => setVersion(i.version)).catch(() => undefined)
+  }, [])
+  return (
+    <section>
+      <h4>Updates</h4>
+      <div className="row update-row">
+        <span className="small">
+          PD2 Sprite Studio <b>{version || '…'}</b>
+          {update?.latest && <span className="update-pill">{update.latest.version} available</span>}
+        </span>
+        <span className="flex" />
+        <button className="chip-btn" onClick={() => setState({ showUpdate: true })}>
+          <IconRefresh size={15} /> Check for updates
+        </button>
+      </div>
+      <div className="insp-help">The app also checks GitHub by itself once a day and tells you when a new version is out. It never installs one without asking.</div>
+    </section>
+  )
+}
+
 function Settings({ onClose }: { onClose: () => void }) {
   const status = useStore((s) => s.status)
   const [d2Dir, setD2] = useState(status?.location.d2Dir ?? '')
@@ -257,6 +282,7 @@ function Settings({ onClose }: { onClose: () => void }) {
               </button>
             </div>
           </section>
+          <UpdatesSection />
           <McpSettings />
           <section>
             <h4>Keyboard shortcuts</h4>
@@ -327,11 +353,13 @@ export function App() {
   const doc = useStore((s) => s.doc)
   const loadingMsg = useStore((s) => s.loadingMsg)
   const toastMsg = useStore((s) => s.toast)
+  const update = useStore((s) => s.update)
   const [settings, setSettings] = useState(false)
   useShortcuts()
   useEffect(() => {
     init()
     startMcpBridge()
+    startUpdateCheck()
   }, [])
   const inEditor = screen === 'editor' && !!doc
   const in3d = screen === '3d' || screen === 'tiles'
@@ -344,6 +372,13 @@ export function App() {
             <span className="brand-mark">PD2</span> Sprite Studio
           </button>
           <span className="flex" />
+          {update?.latest ? (
+            <button className="update-pill btn-like" onClick={() => setState({ showUpdate: true })} data-tip="Install the new version">
+              <IconDownload size={14} /> Update to {update.latest.version}
+            </button>
+          ) : (
+            <IconButton icon={IconRefresh} label="Check for updates" onClick={() => setState({ showUpdate: true })} />
+          )}
           <IconButton icon={IconSettings} label="Settings" onClick={() => setSettings(true)} />
         </header>
       )}
@@ -374,6 +409,7 @@ export function App() {
       <RampDialog />
       <OutlineDialog />
       <RenderImportDialog />
+      <UpdateDialog />
       <PromptModal />
     </div>
   )

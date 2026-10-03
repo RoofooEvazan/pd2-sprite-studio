@@ -29,6 +29,19 @@ interface Api {
   /** Electron only: receive tool calls from AI assistants */
   onMcpCall?(handler: (msg: { id: number; name: string; args: Record<string, unknown> }) => void): void
   mcpResult?(msg: { id: number; result: unknown }): void
+  appInfo(): Promise<{ version: string; repoUrl: string; packaged: boolean }>
+  checkUpdate(): Promise<UpdateCheck>
+  /** Downloads and installs the update, then restarts the app */
+  installUpdate(): Promise<void>
+  onUpdateProgress?(handler: (p: { done: number; total: number | null }) => void): void
+  openRepoPage(url: string): Promise<void>
+}
+
+export interface UpdateCheck {
+  current: string
+  latest: { version: string; notes: string; date?: string; url: string } | null
+  canInstall: boolean
+  why?: string
 }
 
 export interface McpInfo {

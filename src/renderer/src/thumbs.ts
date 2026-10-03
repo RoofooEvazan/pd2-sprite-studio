@@ -1,9 +1,9 @@
 // Composite previews of units for the pickers (portraits and small animated previews).
 
-import { UnitEntry, cofPath, dccPath } from '../../core/catalog'
+import { UnitEntry, cofPath } from '../../core/catalog'
+import { decodeLayerFile, layerFormat, layerPath } from '../../core/unitLayer'
 import { animFps, COMPOSITS, decodeCof } from '../../core/cof'
 import { compositeFrame, directionBounds, LayerInput, Rgba } from '../../core/composite'
-import { decodeDcc } from '../../core/dcc'
 import { decodeDc6 } from '../../core/dc6'
 import { indexedToRgba } from '../../core/palette'
 import { prefetch, readGameFile } from './api'
@@ -33,7 +33,7 @@ export function loadAnimPreview(unit: UnitEntry, mode: string, wclass: string): 
       const paths = cof.layers.map((l) => {
         const comp = COMPOSITS[l.composit]
         const arm = defaultArmtype(unit, comp, mode, l.weaponClass)
-        return arm ? dccPath(unit, comp, arm, mode, l.weaponClass) : null
+        return arm ? layerPath(unit, comp, arm, mode, l.weaponClass, layerFormat(unit, comp, arm, mode, l.weaponClass)) : null
       })
       await prefetch(paths.filter((x): x is string => !!x))
       const layers = new Map<number, LayerInput>()
@@ -44,8 +44,7 @@ export function loadAnimPreview(unit: UnitEntry, mode: string, wclass: string): 
           let sprite = null
           if (data) {
             try {
-              const d = decodeDcc(data, dir)
-              sprite = { directions: d.directions, framesPerDir: d.framesPerDir, frames: d.frames }
+              sprite = decodeLayerFile(data, /\.dc6$/i.test(path!) ? 'dc6' : 'dcc', dir).sprite
             } catch {
               sprite = null
             }

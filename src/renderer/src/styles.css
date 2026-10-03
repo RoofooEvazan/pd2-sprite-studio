@@ -2513,3 +2513,62 @@ button.canvas-chip:hover {
   max-height: 180px;
   overflow: auto;
 }
+
+/* Updates */
+.update-row {
+  align-items: center;
+  gap: 8px;
+}
+.update-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: 8px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #1a1408;
+  background: var(--accent);
+  border: none;
+}
+.update-pill.btn-like {
+  cursor: pointer;
+  padding: 5px 12px;
+  margin-right: 6px;
+}
+.update-pill.btn-like:hover {
+  filter: brightness(1.08);
+}
+.release-notes {
+  max-height: 240px;
+  overflow: auto;
+  white-space: pre-wrap;
+  font-size: 12.5px;
+  line-height: 1.45;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+.update-progress {
+  display: grid;
+  gap: 6px;
+  margin-top: 6px;
+}
+.update-bar {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+.update-bar span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.2s ease;
+}
+
+.error-text {
+  color: #e8806f;
+}

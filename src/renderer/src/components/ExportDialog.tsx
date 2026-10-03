@@ -1,9 +1,9 @@
 import { useState } from 'react'
-import { dccPath } from '../../../core/catalog'
+import { encodeLayerFile, layerPath } from '../../../core/unitLayer'
 import { COMPOSITS } from '../../../core/cof'
 import { compositeFrame, directionBounds, frameToRgba, LayerInput, overlayAll, Rgba, sheet } from '../../../core/composite'
 import { encodeDc6 } from '../../../core/dc6'
-import { bestCellAnchor, encodeDcc } from '../../../core/dcc'
+import { bestCellAnchor } from '../../../core/dcc'
 import { armtypeName, PART_LABELS } from '../names'
 import { api } from '../api'
 import { Background, encodeGif, rgbaToBytes, saveBytes, scaleRgba, withBackground } from '../imageExport'
@@ -110,10 +110,10 @@ export function ExportDialog() {
     let violations = 0
     for (const l of d.layers) {
       if (!l.sprite || (!l.dirty && !includeAll)) continue
-      for (const dir of l.sprite.frames) violations += bestCellAnchor(dir).violations
+      if (l.format === 'dcc') for (const dir of l.sprite.frames) violations += bestCellAnchor(dir).violations
       files.push({
-        rel: dccPath({ base: d.unit.base, token: d.unit.token }, COMPOSITS[l.composit], l.armtype, d.mode, l.weaponClass),
-        data: encodeDcc(l.sprite, { palette: palette(), frameMeta: l.frameMeta ?? undefined })
+        rel: layerPath({ base: d.unit.base, token: d.unit.token }, COMPOSITS[l.composit], l.armtype, d.mode, l.weaponClass, l.format),
+        data: encodeLayerFile(l.sprite, l.format, { palette: palette(), frameMeta: l.frameMeta, dc6Meta: l.dc6Meta })
       })
     }
     return { files, violations }
@@ -149,8 +149,9 @@ export function ExportDialog() {
       else {
         const l = doc.layers.find((x) => x.composit === doc.active)
         if (!l?.sprite) return toast('Active layer is empty')
-        const name = `${doc.unit.token}${COMPOSITS[l.composit]}${l.armtype}${doc.mode}${l.weaponClass}.dcc`
-        saved(await saveBytes(name, encodeDcc(l.sprite, { palette: palette(), frameMeta: l.frameMeta ?? undefined }), 'dcc', 'DCC animation'))
+        const name = `${doc.unit.token}${COMPOSITS[l.composit]}${l.armtype}${doc.mode}${l.weaponClass}.${l.format}`
+        const data = encodeLayerFile(l.sprite, l.format, { palette: palette(), frameMeta: l.frameMeta, dc6Meta: l.dc6Meta })
+        saved(await saveBytes(name, data, l.format, l.format === 'dc6' ? 'DC6 animation' : 'DCC animation'))
       }
     })
 
@@ -178,7 +179,7 @@ export function ExportDialog() {
                         <li key={l.composit}>
                           <b>{PART_LABELS[COMPOSITS[l.composit]] ?? COMPOSITS[l.composit]}</b>{' '}
                           <span className="muted">({armtypeName(s.catalog, COMPOSITS[l.composit], l.armtype)})</span>
-                          <div className="muted tiny mono">{dccPath({ base: doc.unit.base, token: doc.unit.token }, COMPOSITS[l.composit], l.armtype, doc.mode, l.weaponClass)}</div>
+                          <div className="muted tiny mono">{layerPath({ base: doc.unit.base, token: doc.unit.token }, COMPOSITS[l.composit], l.armtype, doc.mode, l.weaponClass, l.format)}</div>
                         </li>
                       ))}
                     </ul>

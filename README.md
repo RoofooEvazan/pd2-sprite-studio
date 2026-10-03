@@ -28,6 +28,12 @@ To build the Windows installer (`release/PD2-Sprite-Studio-Setup-<version>.exe`)
 npm run dist
 ```
 
+**Updates:** the app checks [GitHub Releases](https://github.com/RoofooEvazan/pd2-sprite-studio/releases) once a day and
+says when a new version is out (it never installs one unasked). *Check for updates* (top bar, or Settings › Updates) shows
+the release notes and installs the new version in place, then restarts. To publish a release: bump `version` in
+`package.json`, run `npm run dist`, and attach `release/PD2-Sprite-Studio-Setup-<version>.exe`, its `.blockmap` and
+`release/latest.yml` to a GitHub release tagged `v<version>`.
+
 Game folders default to `C:\Program Files\Diablo II` and its `ProjectD2` subfolder; change them in **Settings**.
 
 ## Features

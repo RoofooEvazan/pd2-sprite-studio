@@ -292,7 +292,8 @@ export function PixelCanvas() {
       ctx.setLineDash([])
     }
 
-    if (view.cellWarn && doc.kind === 'anim' && af && af.width && !stroke.current && !showOriginal) {
+    // The 4-colours-per-cell limit is a DCC thing; DC6 parts (e.g. Mephisto) have no such limit
+    if (view.cellWarn && doc.kind === 'anim' && doc.layers.find((l) => l.composit === doc.active)?.format !== 'dc6' && af && af.width && !stroke.current && !showOriginal) {
       const box = activeDirBox()
       if (box) {
         ctx.strokeStyle = 'rgba(255,60,60,0.95)'

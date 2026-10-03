@@ -1,7 +1,7 @@
 {
   "name": "pd2-sprite-studio",
   "productName": "PD2 Sprite Studio",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Standalone sprite editor for Project Diablo 2",
   "author": "PD2 Sprite Studio",
   "main": "./out/main/index.js",
@@ -52,6 +52,14 @@
         "from": "resources/mcp-bridge.cjs",
         "to": "mcp-bridge.cjs"
       }
+    ],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "RoofooEvazan",
+        "repo": "pd2-sprite-studio",
+        "releaseType": "release"
+      }
     ]
   },
   "devDependencies": {
@@ -72,5 +80,8 @@
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
     "vite": "^6.4.3"
+  },
+  "dependencies": {
+    "electron-updater": "^6.3.9"
   }
 }

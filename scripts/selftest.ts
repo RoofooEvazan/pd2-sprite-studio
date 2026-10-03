@@ -4,7 +4,10 @@ import { defaultGameLocation, openGameVfs } from '../src/main/nodeMpq'
 import { decodeDc6, encodeDc6 } from '../src/core/dc6'
 import { indexedToRgba, palettePath, parsePalDat } from '../src/core/palette'
 import { writePng } from './pngNode'
-import { decodeCof, encodeCof, decodeAnimData } from '../src/core/cof'
+import { COMPOSITS, decodeCof, encodeCof, decodeAnimData } from '../src/core/cof'
+import { buildCatalog, cofPath } from '../src/core/catalog'
+import { decodeLayerFile, encodeLayerFile, layerFormat, layerPath } from '../src/core/unitLayer'
+import { compositeFrame, LayerInput } from '../src/core/composite'
 import { decodeDcc, encodeDcc } from '../src/core/dcc'
 import { expandFrame, spriteBounds } from '../src/core/sprite'
 import { PX_PER_HEIGHT, sliceScene } from '../src/core/tileSlicer'
@@ -199,6 +202,57 @@ const tr = decodeDcc(vfs.read('data\\global\\chars\\BA\\TR\\BATRLITNUHTH.dcc')!)
   check(fr.width === 4 && fr.height === 5 && fr.offsetX === -2 && fr.offsetY === -5 && fr.pixels.every((p) => p > 0), 'render import: frame placed relative to ground point')
   const half = renderToFrame({ dir: 0, frame: 0, width: 20, height: 20, rgba }, lut, { originX: 10, originY: 10, scale: 0.5, alphaThreshold: 100, dither: true })
   check(half.width >= 2 && half.width <= 3 && half.offsetY + half.height === 0, `render import: 50% scale keeps feet on the ground (${half.width}x${half.height} @ ${half.offsetX},${half.offsetY})`)
+}
+
+// --- Units whose body parts are DC6 instead of DCC (Mephisto, parts of Diablo, …)
+{
+  const files: string[] = []
+  for (const a of vfs.archives) files.push(...a.listfile())
+  const cat = buildCatalog(files, (n) => vfs.read(`data\\global\\excel\\${n}.txt`))
+  const mp = cat.units.find((u) => u.base === 'monsters' && u.token === 'MP')!
+  check(!!mp && mp.dc6.length > 30 && (mp.armtypes.TR ?? []).includes('LIT'), `catalog: Mephisto's ${mp?.dc6.length} DC6 parts are indexed`)
+  let ok = 0
+  let total = 0
+  const badParts: string[] = []
+  for (const u of cat.units)
+    for (const stem of u.dc6) {
+      const comp = COMPOSITS.find((c) => stem.startsWith(c) && u.armtypes[c]?.some((a) => stem.startsWith(c + a)))
+      if (!comp) continue
+      const rest = stem.slice(comp.length)
+      const arm = rest.slice(0, rest.length - 5)
+      const path = layerPath(u, comp, arm, rest.slice(-5, -3), rest.slice(-3), layerFormat(u, comp, arm, rest.slice(-5, -3), rest.slice(-3)))
+      const data = vfs.read(path)
+      if (!data) continue
+      total++
+      try {
+        const a = decodeLayerFile(data, 'dc6')
+        const b = decodeLayerFile(encodeLayerFile(a.sprite, 'dc6', { palette: pal, dc6Meta: a.dc6Meta }), 'dc6')
+        const same = a.sprite.frames.flat().every((f, i) => {
+          const g = b.sprite.frames.flat()[i]
+          return f.width === g.width && f.height === g.height && f.offsetX === g.offsetX && f.offsetY === g.offsetY && f.pixels.every((v, j) => v === g.pixels[j])
+        })
+        if (same) ok++
+        else badParts.push(path)
+      } catch (e) {
+        badParts.push(`${path}: ${(e as Error).message}`)
+      }
+    }
+  check(total > 60 && ok === total, `DC6 body parts: ${ok}/${total} decode → encode → decode pixel-identical ${badParts.slice(0, 3).join(', ')}`)
+
+  // Mephisto's neutral animation composites into a real picture
+  const cof = decodeCof(vfs.read(cofPath(mp, 'NU', 'HTH'))!)
+  const layers = new Map<number, LayerInput>()
+  for (const l of cof.layers) {
+    const comp = COMPOSITS[l.composit]
+    const arm = (mp.armtypes[comp] ?? []).find((a) => mp.dccs.includes(`${comp}${a}NU${l.weaponClass}`))
+    const data = arm ? vfs.read(layerPath(mp, comp, arm, 'NU', l.weaponClass, layerFormat(mp, comp, arm, 'NU', l.weaponClass))) : null
+    layers.set(l.composit, { sprite: data ? decodeLayerFile(data, layerFormat(mp, comp, arm!, 'NU', l.weaponClass)).sprite : null, visible: true })
+  }
+  const im = compositeFrame(cof, layers, pal, 0, 0)
+  let opaque = 0
+  for (let i = 3; i < im.data.length; i += 4) if (im.data[i]) opaque++
+  writePng(`${OUT}/mephisto_nu_d0.png`, im.width, im.height, im.data)
+  check(opaque > 3000, `Mephisto NU composite: ${im.width}x${im.height}, ${opaque} opaque px (out-test/mephisto_nu_d0.png)`)
 }
 
 // --- Tile Maker: slice a synthetic scene, write DT1 + DS1, re-render with game rules, compare
