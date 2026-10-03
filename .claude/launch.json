@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "web-harness",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["tsx", "scripts/webdev.ts"],
+      "port": 5198
+    }
+  ]
+}

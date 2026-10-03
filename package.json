@@ -1,0 +1,76 @@
+{
+  "name": "pd2-sprite-studio",
+  "productName": "PD2 Sprite Studio",
+  "version": "1.1.0",
+  "description": "Standalone sprite editor for Project Diablo 2",
+  "author": "PD2 Sprite Studio",
+  "main": "./out/main/index.js",
+  "private": true,
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "start": "electron-vite preview",
+    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
+    "test": "tsx scripts/selftest.ts",
+    "dist": "electron-vite build && electron-builder --win"
+  },
+  "build": {
+    "appId": "com.pd2spritestudio.app",
+    "productName": "PD2 Sprite Studio",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "out/**/*",
+      "package.json"
+    ],
+    "asar": true,
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "PD2 Sprite Studio",
+      "artifactName": "PD2-Sprite-Studio-Setup-${version}.${ext}",
+      "uninstallDisplayName": "PD2 Sprite Studio"
+    },
+    "extraResources": [
+      {
+        "from": "resources/mcp-bridge.cjs",
+        "to": "mcp-bridge.cjs"
+      }
+    ]
+  },
+  "devDependencies": {
+    "@fontsource-variable/inter": "^5.3.0",
+    "@tabler/icons-react": "^3.48.0",
+    "@types/node": "^26.6.3",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@types/three": "^0.186.0",
+    "@vitejs/plugin-react": "^4.7.0",
+    "electron": "^41.7.1",
+    "electron-builder": "^25.1.8",
+    "electron-vite": "^3.1.0",
+    "gifenc": "^1.0.3",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "three": "^0.186.1",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vite": "^6.4.3"
+  }
+}

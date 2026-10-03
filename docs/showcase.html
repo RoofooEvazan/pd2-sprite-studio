@@ -1,0 +1,486 @@
+<title>PD2 Sprite Studio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+  :root {
+    color-scheme: dark;
+    --ground: #111214;
+    --panel: #1a1b1f;
+    --panel-2: #212228;
+    --line: rgba(236, 233, 226, 0.1);
+    --line-strong: rgba(236, 233, 226, 0.18);
+    --text: #ece9e2;
+    --muted: #a39f95;
+    --faint: #75726b;
+    --gold: #dcab4f;
+    --gold-soft: rgba(220, 171, 79, 0.14);
+    --blood: #c0503b;
+    --ok: #7cc684;
+    --display: 'Cinzel', 'Trajan Pro', Georgia, serif;
+    --sans: 'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif;
+    --mono: 'IBM Plex Mono', Consolas, 'Courier New', monospace;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      color-scheme: light;
+      --ground: #f3f1ec;
+      --panel: #ffffff;
+      --panel-2: #f7f5f0;
+      --line: rgba(40, 34, 24, 0.12);
+      --line-strong: rgba(40, 34, 24, 0.22);
+      --text: #1f1d19;
+      --muted: #5f5a50;
+      --faint: #8a857a;
+      --gold: #9a6a12;
+      --gold-soft: rgba(154, 106, 18, 0.1);
+      --blood: #a23a26;
+      --ok: #2f7d3a;
+    }
+  }
+  :root[data-theme="light"] {
+    color-scheme: light;
+    --ground: #f3f1ec;
+    --panel: #ffffff;
+    --panel-2: #f7f5f0;
+    --line: rgba(40, 34, 24, 0.12);
+    --line-strong: rgba(40, 34, 24, 0.22);
+    --text: #1f1d19;
+    --muted: #5f5a50;
+    --faint: #8a857a;
+    --gold: #9a6a12;
+    --gold-soft: rgba(154, 106, 18, 0.1);
+    --blood: #a23a26;
+    --ok: #2f7d3a;
+  }
+  :root[data-theme="dark"] { color-scheme: dark; }
+
+  body {
+    background: var(--ground);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.6;
+    padding-inline: 20px;
+    padding-block: 0 64px;
+  }
+  .wrap { max-width: 1120px; margin: 0 auto; }
+  a { color: var(--gold); text-underline-offset: 3px; text-decoration-thickness: 1px; }
+  a:hover { text-decoration-thickness: 2px; }
+  a:focus-visible, button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; border-radius: 4px; }
+  code, .mono { font-family: var(--mono); font-size: 0.86em; }
+  code { background: var(--panel-2); border: 1px solid var(--line); border-radius: 4px; padding: 0.05em 0.35em; }
+  h1, h2, h3 { text-wrap: balance; line-height: 1.2; margin: 0; }
+  p { margin: 0; }
+
+  /* Header */
+  header.hero { padding-block: 56px 36px; display: grid; gap: 20px; }
+  .eyebrow { font-family: var(--mono); font-size: 12.5px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+  .eyebrow b { color: var(--gold); font-weight: 500; }
+  h1 { font-family: var(--display); font-weight: 700; font-size: clamp(38px, 6vw, 64px); letter-spacing: 0.02em; }
+  h1 span { color: var(--gold); }
+  .pitch { font-size: clamp(17px, 2vw, 20px); color: var(--muted); max-width: 64ch; }
+  .pitch strong { color: var(--text); font-weight: 500; }
+  .formats { display: flex; flex-wrap: wrap; gap: 8px; }
+  .formats span { font-family: var(--mono); font-size: 12.5px; border: 1px solid var(--line-strong); border-radius: 999px; padding: 3px 11px; color: var(--muted); }
+  .formats span b { color: var(--text); font-weight: 500; }
+  .hero-shot { margin-top: 12px; border-radius: 10px; overflow: hidden; border: 1px solid var(--line-strong); box-shadow: 0 30px 70px -30px rgba(0, 0, 0, 0.6); }
+  .hero-shot img { display: block; width: 100%; height: auto; }
+
+  /* Section nav */
+  nav.toc { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 10; background: color-mix(in srgb, var(--ground) 88%, transparent); backdrop-filter: blur(8px); border-block: 1px solid var(--line); margin-inline: -20px; padding-inline: 20px; }
+  nav.toc .wrap { display: flex; gap: 4px 22px; overflow-x: auto; padding-block: 10px; scrollbar-width: none; }
+  nav.toc a { color: var(--muted); text-decoration: none; font-size: 14px; white-space: nowrap; }
+  nav.toc a:hover { color: var(--text); }
+
+  section { padding-block: 56px 8px; scroll-margin-top: 56px; }
+  section > .wrap > h2 { font-family: var(--display); font-weight: 500; font-size: clamp(26px, 3.2vw, 34px); letter-spacing: 0.02em; margin-bottom: 10px; }
+  .lede { color: var(--muted); max-width: 68ch; margin-bottom: 28px; }
+
+  /* Screens */
+  .screens { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px 24px; }
+  figure { margin: 0; display: grid; gap: 10px; align-content: start; }
+  figure button { all: unset; cursor: zoom-in; display: block; border-radius: 8px; overflow: hidden; border: 1px solid var(--line); background: var(--panel); }
+  figure button:hover { border-color: var(--line-strong); }
+  figure button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+  figure img { display: block; width: 100%; height: auto; }
+  figcaption { font-size: 14.5px; color: var(--muted); }
+  figcaption b { color: var(--text); font-weight: 600; }
+  .wide { grid-column: 1 / -1; }
+
+  /* Proof */
+  .proof { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 28px; align-items: start; }
+  .results { width: 100%; border-collapse: collapse; font-size: 14.5px; }
+  .results th, .results td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  .results th { font-weight: 500; color: var(--muted); font-size: 12.5px; text-transform: uppercase; letter-spacing: 0.08em; }
+  .results td.n { font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--text); }
+  .results td.n .ok { color: var(--ok); }
+  .table-scroll { overflow-x: auto; }
+
+  /* How it works */
+  .cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 20px; display: grid; gap: 10px; align-content: start; }
+  .card h3 { font-size: 17px; font-weight: 600; }
+  .card p, .card li { color: var(--muted); font-size: 15px; }
+  .card ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; }
+  .tag { font-family: var(--mono); font-size: 11.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--gold); }
+
+  .pipeline { counter-reset: step; list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; max-width: 76ch; }
+  .pipeline li { counter-increment: step; display: grid; grid-template-columns: 34px 1fr; gap: 12px; color: var(--muted); }
+  .pipeline li::before { content: counter(step); font-family: var(--mono); color: var(--gold); border: 1px solid var(--gold-soft); background: var(--gold-soft); border-radius: 50%; width: 28px; height: 28px; display: grid; place-items: center; font-size: 13px; }
+  .pipeline b { color: var(--text); font-weight: 600; }
+
+  .limits { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 28px; margin: 0; padding: 0; list-style: none; }
+  .limits li { border-left: 2px solid var(--blood); padding: 2px 0 2px 14px; color: var(--muted); font-size: 15px; }
+  .limits li b { color: var(--text); font-weight: 600; }
+
+  pre { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 16px 18px; overflow-x: auto; font-family: var(--mono); font-size: 13.5px; line-height: 1.7; margin: 0; }
+  pre .c { color: var(--faint); }
+  .run { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; align-items: start; }
+  .run p { color: var(--muted); }
+
+  .refs { columns: 2; column-gap: 32px; padding: 0; margin: 0; list-style: none; }
+  .refs li { break-inside: avoid; padding-block: 6px; border-bottom: 1px solid var(--line); font-size: 15px; }
+  .refs li span { display: block; color: var(--faint); font-size: 13.5px; }
+
+  footer { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--line); color: var(--faint); font-size: 13.5px; }
+
+  /* Lightbox */
+  dialog { border: 1px solid var(--line-strong); background: var(--panel); color: var(--text); padding: 0; border-radius: 10px; max-width: min(96vw, 1700px); max-height: 94vh; }
+  dialog::backdrop { background: rgba(0, 0, 0, 0.75); }
+  dialog img { display: block; max-width: 100%; max-height: calc(94vh - 52px); width: auto; height: auto; }
+  dialog .bar { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 10px 14px; font-size: 14px; color: var(--muted); }
+  dialog button { font: inherit; color: var(--text); background: var(--panel-2); border: 1px solid var(--line-strong); border-radius: 6px; padding: 4px 12px; cursor: pointer; }
+
+  @media (max-width: 820px) {
+    .screens, .proof, .cols, .run, .limits { grid-template-columns: 1fr; }
+    .refs { columns: 1; }
+    header.hero { padding-block: 36px 24px; }
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    figure button img { transition: transform 0.25s ease; }
+    figure button:hover img { transform: scale(1.012); }
+  }
+</style>
+
+<div class="wrap">
+  <header class="hero">
+    <div class="eyebrow"><b>Project Diablo 2</b> · standalone Windows editor · v1.1</div>
+    <h1>PD2 <span>Sprite</span> Studio</h1>
+    <p class="pitch">
+      An editor for Diablo II / Project Diablo 2 graphics that reads straight from the game's MPQ archives.
+      You can <strong>edit character, monster and item sprites pixel by pixel</strong> in the game palettes,
+      <strong>turn 3D models into animated sprites</strong>, and <strong>cut 3D scenes from Blender or 3ds Max into DT1 map tiles
+      and a DS1 map piece</strong>. Everything saves back out in the game's own formats, and <strong>AI assistants can drive it over MCP</strong>
+      while you watch.
+    </p>
+    <div class="formats" aria-label="Formats handled">
+      <span><b>MPQ</b> read</span>
+      <span><b>DC6</b> read · write</span>
+      <span><b>DCC</b> read · write</span>
+      <span><b>COF</b> read · write</span>
+      <span><b>DT1</b> read · write</span>
+      <span><b>DS1</b> read · write</span>
+      <span><b>animdata.d2</b> read</span>
+      <span><b>FBX · GLB · OBJ</b> import</span>
+      <span><b>PNG · JPEG · GIF</b> export</span>
+      <span><b>MCP</b> server</span>
+    </div>
+    <div class="hero-shot"><img src="screenshots/04-editor.png" alt="The sprite editor with the Barbarian's attack animation open: tool rail on the left, body parts on the right, frames and facing at the bottom, and a live preview." width="1600" height="940"></div>
+  </header>
+</div>
+
+<nav class="toc" aria-label="Sections">
+  <div class="wrap">
+    <a href="#screens">Screens</a>
+    <a href="#proof">Format accuracy</a>
+    <a href="#how">How it works</a>
+    <a href="#tiles">Tile Maker pipeline</a>
+    <a href="#ai">AI assistants</a>
+    <a href="#limits">Known limits</a>
+    <a href="#run">Running it</a>
+    <a href="#refs">References</a>
+  </div>
+</nav>
+
+<section id="screens">
+  <div class="wrap">
+    <h2>Screens</h2>
+    <p class="lede">These are captured from the real app running against a Diablo II + ProjectD2 install. Click any image to see it full size.</p>
+    <div class="screens">
+      <figure>
+        <button type="button" data-full="screenshots/01-home.png"><img src="screenshots/01-home.png" alt="Start screen with Character gear, Monster and Inventory item cards, plus 3D Studio and Tile Maker." loading="lazy" width="1600" height="940"></button>
+        <figcaption><b>Start screen.</b> Pick what to change, or search across every character, monster and item.</figcaption>
+      </figure>
+      <figure>
+        <button type="button" data-full="screenshots/02-characters.png"><img src="screenshots/02-characters.png" alt="Grid of the seven character classes rendered from game files." loading="lazy" width="1600" height="940"></button>
+        <figcaption><b>Character picker.</b> Portraits are composited live from the game's DCC layers.</figcaption>
+      </figure>
+      <figure>
+        <button type="button" data-full="screenshots/03-animation-chooser.png"><img src="screenshots/03-animation-chooser.png" alt="Animation chooser for the Barbarian with plain-English mode and weapon names and an animated preview." loading="lazy" width="1600" height="940"></button>
+        <figcaption><b>Animation chooser.</b> Modes and weapon classes use plain names (“Attack · one-handed swing” rather than <code>A1 1HS</code>), with a live preview.</figcaption>
+      </figure>
+      <figure>
+        <button type="button" data-full="screenshots/05-editor-colours.png"><img src="screenshots/05-editor-colours.png" alt="Editor with the Colours tab: HSV colour picker snapping to palette entries, shading ramp and palette grid." loading="lazy" width="1600" height="940"></button>
+        <figcaption><b>Colours.</b> Pick any colour and it snaps to the nearest palette entries (ΔE shown), with a shading ramp and the palette sorted by hue. Red boxes flag DCC cells over the 4-colour limit.</figcaption>
+      </figure>
+      <figure>
+        <button type="button" data-full="screenshots/06-transfer.png"><img src="screenshots/06-transfer.png" alt="Transfer dialog showing a stroke tracked across 15 frames with before and after thumbnails and match confidence." loading="lazy" width="1600" height="940"></button>
+        <figcaption><b>Edit transfer.</b> An edit on one frame is tracked through the animation by local pixel matching, with a per-frame before/after to accept or reject.</figcaption>
+      </figure>
+      <figure>
+        <button type="button" data-full="screenshots/07-more-menu.png"><img src="screenshots/07-more-menu.png" alt="The More menu listing transfer, 3D Studio, render import, outline, copy frame, import picture and revert." loading="lazy" width="1600" height="940"></button>
+        <figcaption><b>Tools.</b> Draw, shade, recolour a whole material, selection with mirror to the opposite facing, outline and clean-up, paint lock, a reference overlay, and compare with the original.</figcaption>
+      </figure>
+      <figure>
+        <button type="button" data-full="screenshots/08-items.png"><img src="screenshots/08-items.png" alt="Grid of inventory item graphics with category filters." loading="lazy" width="1600" height="940"></button>
+        <figcaption><b>Items.</b> All 1,822 item graphics, named from PD2's own tables, with uniques and sets tinted the way the game tints them.</figcaption>
+      </figure>
+      <figure>
+        <button type="button" data-full="screenshots/09-monsters.png"><img src="screenshots/09-monsters.png" alt="Grid of monster portraits rendered from game files." loading="lazy" width="1600" height="940"></button>
+        <figcaption><b>Monsters.</b> 251 units, including PD2's additions from <code>pd2monchars.mpq</code>.</figcaption>
+      </figure>
+      <figure class="wide">
+        <button type="button" data-full="screenshots/10-3d-studio.png"><img src="screenshots/10-3d-studio.png" alt="3D Studio with an animated knight model holding an attached cylinder, and an in-game preview composited onto the Barbarian." loading="lazy" width="1600" height="940"></button>
+        <figcaption><b>3D Studio (three.js).</b> Load FBX, GLB or OBJ with animations, attach props to bones, and preview in the game's colours on the current body. One click renders every facing × frame straight into a body part (16 × 16 in about 1.6 s).</figcaption>
+      </figure>
+      <figure>
+        <button type="button" data-full="screenshots/11-tile-maker.png"><img src="screenshots/11-tile-maker.png" alt="Tile Maker with an imported plateau coloured by role: green floor, gold wall, blue lower-wall cliffs below the ground, with the role legend." loading="lazy" width="1600" height="940"></button>
+        <figcaption><b>Tile Maker.</b> Import a scene from Blender or 3ds Max, line it up with the tile grid, and give each part a role: floor, wall, lower wall (cliffs, platform sides) or roof. A legend explains each role and the scene can be coloured by role; here a plateau's sides became lower walls on their own.</figcaption>
+      </figure>
+      <figure>
+        <button type="button" data-full="screenshots/12-tile-maker-result.png"><img src="screenshots/12-tile-maker-result.png" alt="Tile Maker result: the map piece rendered by game rules, with tile counts and the DT1 files to be written." loading="lazy" width="1600" height="940"></button>
+        <figcaption><b>Split result.</b> The map piece is drawn from the generated DT1s and DS1 using the game's placement rules, then saved as <code>_floor</code>, <code>_walls</code> and <code>_roof</code> DT1s plus a <code>.ds1</code>. The cliff faces are lower-wall tiles (orientations 16/17), drawn before the floor as the game does.</figcaption>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<section id="proof">
+  <div class="wrap">
+    <h2>Format accuracy</h2>
+    <p class="lede">
+      Every codec is pure TypeScript and was checked against the game's own files before any UI used it.
+      The image below is the Act 1 Cathedral courtyard, rendered from its real DS1 and DT1s by the app's own
+      decoders and placement code. The same code draws the Tile Maker's previews.
+    </p>
+    <div class="proof">
+      <figure>
+        <button type="button" data-full="screenshots/13-map-render-proof.png"><img src="screenshots/13-map-render-proof.png" alt="The Act 1 Cathedral courtyard map rendered from game files: walls, arches, floors, barrels and a stained-glass door all aligned." loading="lazy" width="3360" height="2200"></button>
+        <figcaption><b><code>act1\court\cat_court.ds1</code></b> rendered from 239 tiles with 0 missing references.</figcaption>
+      </figure>
+      <div class="table-scroll">
+        <table class="results">
+          <thead><tr><th>Check against game data</th><th>Result</th></tr></thead>
+          <tbody>
+            <tr><td>DC6 item graphics, decode → encode → decode</td><td class="n"><span class="ok">648 / 648</span> pixel-identical</td></tr>
+            <tr><td>COF files, parse and rewrite</td><td class="n"><span class="ok">4,431 / 4,431</span> byte-identical</td></tr>
+            <tr><td>DCC animations (sampled), decode → encode → decode</td><td class="n"><span class="ok">251 / 251</span> pixel-identical</td></tr>
+            <tr><td>DT1 tile sets (v7), decode and re-encode</td><td class="n"><span class="ok">372 / 372</span> (221 byte-exact)</td></tr>
+            <tr><td>DS1 map presets, decode and re-encode</td><td class="n"><span class="ok">2,593 / 2,593</span> (2,541 byte-exact)</td></tr>
+            <tr><td>Tile Maker: synthetic scene → DT1 + DS1 → re-rendered</td><td class="n"><span class="ok">208,566 / 208,566</span> px</td></tr>
+            <tr><td>MCP server: protocol, tools, origin check and stdio bridge against the running app</td><td class="n"><span class="ok">13 / 13</span> checks</td></tr>
+            <tr><td>DCC growth edit keeps untouched art lossless (cell-grid anchoring)</td><td class="n"><span class="ok">0 px</span> changed</td></tr>
+          </tbody>
+        </table>
+        <p class="lede" style="margin-top:14px;font-size:14.5px">
+          DT1 re-encodes that aren't byte-exact are still pixel-identical; they just use equivalent run choices. The 52 DS1s that
+          aren't byte-exact are older-version maps that differ by a few bytes; the Tile Maker writes v18, which is exact.
+          Excluded: a 72-byte COF stub that is corrupt in vanilla D2 (<code>amblxbow.cof</code>) and 6 legacy v4 DT1 leftovers the game doesn't use.
+          Run the checks with <code>npm test</code>.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="how">
+  <div class="wrap">
+    <h2>How it works</h2>
+    <p class="lede">Electron app with a React + TypeScript UI. File formats live in a dependency-free core that also runs under Node for the tests.</p>
+    <div class="cols">
+      <div class="card">
+        <div class="tag">src/core</div>
+        <h3>Formats</h3>
+        <ul>
+          <li>MPQ v1 reader with a PKWARE “explode” port, zlib, encrypted and fix-key files, and layered archive priority (PD2 over vanilla)</li>
+          <li>DCC decoder/encoder with the equal-cell stream, and a cell-grid anchor search so edits don't degrade original art</li>
+          <li>DC6, COF, animdata.d2, DT1 and DS1 (all versions, trailing data preserved)</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="tag">src/core</div>
+        <h3>Editing logic</h3>
+        <ul>
+          <li>COF layer compositing with draw effects</li>
+          <li>Edit transfer between frames by region tracking</li>
+          <li>Perceptual (Lab) palette matching, shading ramps, ramp swaps, outline and clean-up</li>
+          <li>Render import: facing mapping (8↔16), frame resampling, ground point, dithering</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="tag">src/renderer</div>
+        <h3>3D (three.js)</h3>
+        <ul>
+          <li>Game camera: orthographic, 30° elevation, 45° azimuth; +Z faces down-left (direction 0)</li>
+          <li>FBX, glTF/GLB and OBJ loaders with texture resolution; animation clips; bone attachment</li>
+          <li>Tile scenes at 1 unit = 1 tile (160 px), with a world-position pass for wall slicing</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="tiles">
+  <div class="wrap">
+    <h2>Tile Maker pipeline</h2>
+    <p class="lede">The old way was to render a scene and cut the walls into tiles by hand. This does the cutting automatically.</p>
+    <ol class="pipeline">
+      <li><span><b>Import and line up.</b> The model is set on the grid at “1 tile = N units” (auto-guessed for Blender metres or 3ds Max centimetres). You can stand Z-up models upright, turn them in 90° steps and move them by whole tiles.</span></li>
+      <li><span><b>Render layers.</b> Floor, wall, lower-wall and roof parts render separately through the exact tile camera, where world <code>(X, Y, Z)</code> maps to pixels as <code>((X−Z)·80, (X+Z)·40 − Y·98)</code>. A float render target also records each wall pixel's world position and which way its surface faces.</span></li>
+      <li><span><b>Slice.</b> Floors are sampled into the 25 diamond blocks per 160×80 tile. Each wall pixel goes to the grid line its surface runs along (the nearest line for flat tops): X = n gives a left wall (orientation 1), Z = n gives a right wall (orientation 2). Wall geometry below the ground becomes lower walls (16/17, directions 6/7). Roofs become orientation-15 tiles raised to their height.</span></li>
+      <li><span><b>Walkability.</b> Low wall geometry marks the subtile it stands on as blocked (<code>0x07</code>), stored in the same row order the game's tiles use.</span></li>
+      <li><span><b>Write.</b> Identical tiles are shared, then indexes are assigned from a chosen start (64 per main index). It writes DT1 v7/6 files split by kind, plus a DS1 v18 map piece listing them, with floors in layer 1 and walls, lower walls and roofs filling up to 4 wall layers.</span></li>
+    </ol>
+  </div>
+</section>
+
+<section id="ai">
+  <div class="wrap">
+    <h2>AI assistants (MCP)</h2>
+    <p class="lede">
+      New in 1.1: the app can serve the <a href="https://modelcontextprotocol.io">Model Context Protocol</a>, so an assistant such as Claude
+      can work in the open app while you watch. Every change goes through the same code as the UI: it shows up live, is one undo step, and
+      exports like a hand edit. Tool results include pictures (the frame, a sheet, or the map drawn with the game's rules), so the assistant
+      can check its own work.
+    </p>
+    <div class="screens">
+      <figure>
+        <button type="button" data-full="screenshots/16-ai-settings.png"><img src="screenshots/16-ai-settings.png" alt="Settings with the AI assistants section: an on/off switch, the running address, and copyable setup for Claude Code and Claude Desktop." loading="lazy" width="1600" height="940"></button>
+        <figcaption><b>Turning it on.</b> Off by default. When it's on, Settings shows a one-line setup for Claude Code and a config block for Claude Desktop.</figcaption>
+      </figure>
+      <figure>
+        <button type="button" data-full="screenshots/17-ai-tile-scene.png"><img src="screenshots/17-ai-tile-scene.png" alt="Tile Maker scene built entirely through MCP tool calls: floor, two walls with a doorway, a pillar, and cliffs, coloured by role." loading="lazy" width="1600" height="940"></button>
+        <figcaption><b>A scene built by tool calls.</b> Floor slabs, walls with a doorway, a pillar and cliffs, added with <code>tiles_add_block</code>. Parts below the ground became lower walls automatically.</figcaption>
+      </figure>
+    </div>
+    <div class="cols" style="margin-top:22px">
+      <div class="card">
+        <div class="tag">Sprites</div>
+        <h3>Find, edit, export</h3>
+        <ul>
+          <li><code>search_sprites</code>, <code>open_animation</code>, <code>open_item</code>, <code>set_layer</code> (body part, style, new style code)</li>
+          <li><code>view_frame</code>, <code>view_sheet</code>, <code>read_pixels</code>, <code>palette</code> (nearest colours, shading ramps)</li>
+          <li><code>recolor_material</code>, <code>replace_color</code>, <code>hsv_shift</code>, <code>draw_pixels</code>, <code>draw_shape</code>, <code>outline</code>, <code>import_image</code></li>
+          <li><code>transfer_edits</code> carries one frame's edit through the animation; <code>undo</code> / <code>redo</code>; <code>export_pd2</code>, <code>export_image</code></li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="tag">Tile Maker</div>
+        <h3>Build and split scenes</h3>
+        <ul>
+          <li><code>tiles_add_block</code> (box, cylinder, cone, sphere, ramp in tile units) or <code>tiles_import_model</code></li>
+          <li><code>tiles_list_parts</code>, <code>tiles_set_role</code>, <code>tiles_settings</code>, <code>tiles_clear</code></li>
+          <li><code>tiles_split</code> returns tile counts and the map as the game draws it; <code>tiles_save</code> writes the DT1s and DS1</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="tag">Connection</div>
+        <h3>Local only</h3>
+        <ul>
+          <li>Streamable HTTP on <code>127.0.0.1:41730/mcp</code>; requests from web pages (other origins or hosts) are refused</li>
+          <li>Claude Desktop and other stdio clients use a bundled bridge run by the app's own executable, so nothing else needs installing</li>
+          <li>Plus <code>get_state</code>, <code>go_to_screen</code> and <code>screenshot_app</code></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="limits">
+  <div class="wrap">
+    <h2>Known limits</h2>
+    <p class="lede">Please look closely at these.</p>
+    <ul class="limits">
+      <li><b>Not yet tested in the game.</b> The exported DCC, DC6, DT1 and DS1 files are verified by decoding and re-rendering only. They still need a run in PD2 single player (PlugY / <code>-direct -txt</code>) and in ds1-studio.</li>
+      <li><b>Online use is unconfirmed.</b> PD2's rules forbid tools that “tamper with the game”; whether client-side graphics changes count hasn't been asked yet.</li>
+      <li><b>Tile types.</b> Floors, left/right walls, lower walls and roofs are generated. Corners, doors, shadows and animated tiles are not yet.</li>
+      <li><b>AI assistants work best with the high-level tools.</b> Recolours, edit transfer, clean-up and Tile Maker scenes come out well; pixel art drawn from scratch by an assistant is rough. While the MCP switch is on, any program on the PC can drive the app.</li>
+      <li><b>DCC 4-colour cells.</b> Cells with more than 4 colours (common in 3D shading) are reduced at export. The editor flags them in red.</li>
+      <li><b>No real Blender or 3ds Max files tested yet.</b> Tests used equivalent GLB and OBJ written by scripts. Draco-compressed GLB isn't supported.</li>
+      <li><b>Walk flags and cell values are inferred.</b> The subtile flag layout and DS1 “tile present” values copy patterns found in the game's files, not a published spec.</li>
+    </ul>
+  </div>
+</section>
+
+<section id="run">
+  <div class="wrap">
+    <h2>Running it</h2>
+    <div class="run">
+      <div>
+        <p style="margin-bottom:14px">
+          The Windows installer (<code>PD2-Sprite-Studio-Setup-1.1.0.exe</code>, about 95 MB, unsigned) installs per-user with Start menu
+          and desktop shortcuts. On first run it looks for the game in <code>C:\Program Files\Diablo II</code> and its
+          <code>ProjectD2</code> folder; other locations can be set in Settings. It never modifies the game install:
+          exports go to a separate folder with the game's own <code>data\global\…</code> layout.
+        </p>
+        <p>The source and the installer are available from the author on request.</p>
+      </div>
+<pre><span class="c"># from the source folder (Node 20+)</span>
+npm install
+npm run dev          <span class="c"># run with hot reload</span>
+npm test             <span class="c"># format round-trips against your game files</span>
+node scripts/testMcp.cjs  <span class="c"># MCP server end to end (after npm run build)</span>
+npm run dist         <span class="c"># build the Windows installer → release/</span>
+npx tsx scripts/webdev.ts   <span class="c"># UI in a browser on :5198</span></pre>
+    </div>
+  </div>
+</section>
+
+<section id="refs">
+  <div class="wrap">
+    <h2>References</h2>
+    <p class="lede">The format docs and tools this builds on.</p>
+    <ul class="refs">
+      <li><a href="https://d2mods.info/forum/viewtopic.php?t=724">COF, D2, DC6, DS1, DT1, TBL file formats</a><span>The Phrozen Keep</span></li>
+      <li><a href="https://d2mods.info/forum/kb/viewarticle?a=40">The DT1 Format</a><span>The Phrozen Keep knowledge base</span></li>
+      <li><a href="https://d2mods.info/forum/viewtopic.php?t=65163">Information about DT1 (orientations, directions, roofs)</a><span>The Phrozen Keep</span></li>
+      <li><a href="http://paul.siramy.free.fr/_divers/dt1_doc/">DT1 format documentation</a><span>Paul Siramy</span></li>
+      <li><a href="http://paul.siramy.free.fr/_divers/ds1/doc/index.html">DS1 Editor documentation</a><span>Paul Siramy</span></li>
+      <li><a href="https://d2mods.info/forum/viewtopic.php?t=62384">Working with .dcc files</a><span>The Phrozen Keep</span></li>
+      <li><a href="http://d2mods.info/forum/viewtopic.php?t=14662">How to make a 3D model be used by Diablo II</a><span>The Phrozen Keep tutorial (camera setup)</span></li>
+      <li><a href="https://github.com/eezstreet/DT1-Tools">DT1-Tools</a><span>Paul Siramy's DT1 tools, 64-bit port</span></li>
+      <li><a href="https://github.com/RoofooEvazan/ds1-studio">ds1-studio</a><span>DS1 map and DT1 library editor. Tile Maker output opens here.</span></li>
+      <li><a href="https://modelcontextprotocol.io">Model Context Protocol</a><span>How AI assistants connect to the app</span></li>
+      <li><a href="https://threejs.org">three.js</a><span>3D engine for the 3D Studio and Tile Maker</span></li>
+      <li><a href="https://www.electronjs.org">Electron</a><span>Desktop shell</span></li>
+      <li><a href="https://www.projectdiablo2.com/rules">Project Diablo 2 rules</a><span>Read before any online use</span></li>
+    </ul>
+    <footer>PD2 Sprite Studio 1.1 · Uses your own game files; no Blizzard or PD2 assets are distributed with it.</footer>
+  </div>
+</section>
+
+<dialog id="lightbox" aria-label="Full-size screenshot">
+  <div class="bar"><span id="lb-caption"></span><button type="button" id="lb-close">Close</button></div>
+  <img id="lb-img" alt="">
+</dialog>
+
+<script>
+  (function () {
+    var dlg = document.getElementById('lightbox')
+    var img = document.getElementById('lb-img')
+    var cap = document.getElementById('lb-caption')
+    document.querySelectorAll('figure button[data-full]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var inner = b.querySelector('img')
+        img.src = b.getAttribute('data-full')
+        img.alt = inner ? inner.alt : ''
+        var fc = b.parentElement.querySelector('figcaption')
+        cap.textContent = fc ? fc.textContent : ''
+        if (dlg.showModal) dlg.showModal()
+      })
+    })
+    document.getElementById('lb-close').addEventListener('click', function () { dlg.close() })
+    dlg.addEventListener('click', function (e) { if (e.target === dlg) dlg.close() })
+  })()
+</script>
