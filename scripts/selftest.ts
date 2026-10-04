@@ -397,7 +397,7 @@ const tr = decodeDcc(vfs.read('data\\global\\chars\\BA\\TR\\BATRLITNUHTH.dcc')!)
   check(tr >= 0 && c2.layers.length === cof.layers.length + 2 && c2.framesPerDir === cof.framesPerDir && c2.directions === cof.directions && orderOk && c2.layers[c2.layers.length - 1].drawEffect === cof.layers[tr].drawEffect, 'unit split: COF gets the tile layers right after the split layer, same counts and draw effect')
   // D2CMP's static DCC cell buffer holds 5,625 4x4 cells per direction; the game's widest monster direction (this whip) uses 5,429
   const whipCells = dccDirectionCells(src)
-  check(whipCells > 5000 && whipCells < 5625 && MAX_DCC_DIRECTION_CELLS < 5625 && dccDirectionCells(big) > MAX_DCC_DIRECTION_CELLS, `unit split: DCC direction cell measure (Overseer whip ${whipCells} cells, 2x ${dccDirectionCells(big)} > limit ${MAX_DCC_DIRECTION_CELLS})`)
+  check(whipCells > 5000 && whipCells < 5625 && MAX_DCC_DIRECTION_CELLS <= 5625 && whipCells <= MAX_DCC_DIRECTION_CELLS && dccDirectionCells(big) > MAX_DCC_DIRECTION_CELLS, `unit split: DCC direction cell measure (the game's Overseer whip: ${whipCells} cells, within the limit; 2x: ${dccDirectionCells(big)} > limit ${MAX_DCC_DIRECTION_CELLS})`)
 }
 
 console.log(failures ? `${failures} FAILURES` : 'ALL PASSED')

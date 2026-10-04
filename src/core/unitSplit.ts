@@ -154,10 +154,15 @@ export function ms2Columns(composit: number): { on: string; arm: string } {
  * the direction's bounding box (all its frames together) without a bounds check. A bigger box overwrites
  * D2CMP's data and crashes (ACCESS_VIOLATION at D2CMP+0x14739). The largest box a game monster uses is 5,429 cells
  * (the Overseer's whip, 356×244). Art past this limit must be stored as DC6, which isn't decoded through that buffer.
+ * The limit is the buffer itself; dccDirectionCells() allows for the encoder's cell-grid padding, so the game's own
+ * files (the whip included) still pass.
  */
-export const MAX_DCC_DIRECTION_CELLS = 5400
+export const MAX_DCC_DIRECTION_CELLS = 5625
 
-/** Largest ceil(w/4)·ceil(h/4) over the sprite's directions, for the box of all frames in a direction. */
+/**
+ * Largest cell count over the sprite's directions, for the box of all frames in a direction, as the game will see
+ * it once encoded: the encoder anchors the 4×4 cell grid up to 3 px left of / above the box, so 3 px are added.
+ */
 export function dccDirectionCells(s: Sprite): number {
   let max = 0
   for (const frames of s.frames) {
@@ -174,7 +179,7 @@ export function dccDirectionCells(s: Sprite): number {
       y1 = Math.max(y1, f.offsetY + h)
     }
     if (x0 === Infinity) continue
-    max = Math.max(max, Math.ceil((x1 - x0) / 4) * Math.ceil((y1 - y0) / 4))
+    max = Math.max(max, Math.ceil((x1 - x0 + 3) / 4) * Math.ceil((y1 - y0 + 3) / 4))
   }
   return max
 }

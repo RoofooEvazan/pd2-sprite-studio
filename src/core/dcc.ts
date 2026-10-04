@@ -404,7 +404,7 @@ export function dc6CodedSize(f: Frame): number {
 }
 
 export function encodeDcc(s: Sprite, opts: DccEncodeOptions = {}): Uint8Array {
-  // D2CMP.dll halts ("LINE: 1454") on unit frames over 256 px; such art must be split (unitSplit.ts, split-unit.ts).
+  // D2CMP.dll halts ("LINE: 1454") on unit frames over 256 px; such art must be split (unitSplit.ts: splitSprite + addTileLayers).
   if (exceedsUnitFrameLimit(s)) console.warn(`encodeDcc: a frame is larger than ${MAX_UNIT_FRAME}×${MAX_UNIT_FRAME} px; the game will not load this DCC. Split the layer first (unitSplit.splitSprite).`)
   // D2CMP.dll overruns a static buffer (ACCESS_VIOLATION) when a direction's frames span more than ~5,625 4x4 cells.
   if (dccDirectionCells(s) > MAX_DCC_DIRECTION_CELLS) console.warn(`encodeDcc: a direction spans ${dccDirectionCells(s)} 4x4 cells (limit ${MAX_DCC_DIRECTION_CELLS}); the game crashes on it. Save it as DC6 instead.`)

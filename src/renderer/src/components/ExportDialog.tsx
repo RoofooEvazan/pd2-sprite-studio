@@ -113,7 +113,7 @@ export function ExportDialog() {
       if (!l.sprite || (!l.dirty && !includeAll)) continue
       if (exceedsUnitFrameLimit(l.sprite)) {
         const m = maxFrameSize(l.sprite)
-        throw new Error(`${PART_LABELS[COMPOSITS[l.composit]] ?? COMPOSITS[l.composit]} has frames up to ${m.width}×${m.height} px. The game can't load frames over ${MAX_UNIT_FRAME}×${MAX_UNIT_FRAME}, so nothing was saved. Split it into tiles with split-unit.ts, or make it smaller.`)
+        throw new Error(`${PART_LABELS[COMPOSITS[l.composit]] ?? COMPOSITS[l.composit]} has frames up to ${m.width}×${m.height} px. The game can't load frames over ${MAX_UNIT_FRAME}×${MAX_UNIT_FRAME}, so nothing was saved. Make it smaller, or split it across spare body-part slots (S1–S8).`)
       }
       if (l.format === 'dcc' && dccDirectionCells(l.sprite) > MAX_DCC_DIRECTION_CELLS)
         throw new Error(`${COMPOSITS[l.composit]}: one direction spans ${dccDirectionCells(l.sprite)} 4×4 cells (all its frames together); the game crashes above about ${MAX_DCC_DIRECTION_CELLS} cells for a DCC. Nothing was written. Keep the frames closer together, or save this layer as DC6.`)

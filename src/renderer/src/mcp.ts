@@ -628,7 +628,7 @@ const tools: Record<string, (a: Args) => Promise<Content[]> | Content[]> = {
         if (!l.sprite || (!l.dirty && !a.all_parts)) continue
         if (exceedsUnitFrameLimit(l.sprite)) {
           const m = maxFrameSize(l.sprite)
-          fail(`${COMPOSITS[l.composit]} has frames up to ${m.width}×${m.height} px; the game halts on unit frames over ${MAX_UNIT_FRAME}×${MAX_UNIT_FRAME}. Nothing was written. Split the layer into tiles on free composits with .claude/skills/sprite-clone-resize/scripts/split-unit.ts (it also updates the COF and MonStats2), or make it smaller.`)
+          fail(`${COMPOSITS[l.composit]} has frames up to ${m.width}×${m.height} px; the game halts on unit frames over ${MAX_UNIT_FRAME}×${MAX_UNIT_FRAME}. Nothing was written. Make it smaller, or split it into tiles on spare composits (S1-S8): src/core/unitSplit.ts has splitSprite and addTileLayers for that, but no tool exposes it yet.`)
         }
         if (l.format === 'dcc' && dccDirectionCells(l.sprite) > MAX_DCC_DIRECTION_CELLS)
           fail(`${COMPOSITS[l.composit]}: one direction spans ${dccDirectionCells(l.sprite)} 4×4 cells (all its frames together); the game crashes above about ${MAX_DCC_DIRECTION_CELLS} cells for a DCC. Nothing was written. Keep the frames closer together, or save this layer as DC6.`)
