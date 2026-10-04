@@ -9,6 +9,7 @@ import { buildCatalog, cofPath } from '../src/core/catalog'
 import { decodeLayerFile, encodeLayerFile, layerFormat, layerPath } from '../src/core/unitLayer'
 import { compositeFrame, LayerInput } from '../src/core/composite'
 import { decodeDcc, encodeDcc } from '../src/core/dcc'
+import { addTileLayers, dccDirectionCells, exceedsUnitFrameLimit, MAX_DCC_DIRECTION_CELLS, MAX_UNIT_FRAME, splitSprite } from '../src/core/unitSplit'
 import { expandFrame, spriteBounds } from '../src/core/sprite'
 import { PX_PER_HEIGHT, sliceScene } from '../src/core/tileSlicer'
 import { decodeDt1, encodeDt1 } from '../src/core/dt1'
@@ -353,6 +354,50 @@ const tr = decodeDcc(vfs.read('data\\global\\chars\\BA\\TR\\BATRLITNUHTH.dcc')!)
   check(lowers.length > 0 && lowers.every((t) => (t.orientation === 16 ? t.direction === 6 : t.direction === 7) && t.subtileFlags.every((f) => !f)), 'tile maker: lower walls use the game conventions (orientation 16/17, direction 6/7, no walk flags)')
   check(res.stats.droppedOverlaps === 0 && ds1.walls.length === 4, 'tile maker: walls, lower walls and roofs fit the 4 wall layers')
   writePng('out-test/tilemaker_selftest.png', image.width, image.height, image.data)
+}
+
+// --- Unit frame limit: art over 256 px is split into tiles that encode within the limit and re-assemble exactly
+{
+  // The Overseer's whip arm (Act 5, frames up to 189 px wide) at 2x, as the boss scaler would make it
+  const src = decodeDcc(vfs.read('data\\global\\monsters\\OS\\LH\\OSLHLITA2HTH.dcc')!)
+  const up = (k: number) => ({
+    directions: src.directions,
+    framesPerDir: src.framesPerDir,
+    frames: src.frames.map((d) =>
+      d.map((f) => {
+        const w = f.width * k, h = f.height * k, px = new Uint8Array(w * h)
+        for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) px[y * w + x] = f.pixels[Math.floor(y / k) * f.width + Math.floor(x / k)]
+        return { width: w, height: h, offsetX: f.offsetX * k, offsetY: f.offsetY * k, pixels: px }
+      })
+    )
+  })
+  const big = up(2)
+  const tiles = splitSprite(big)
+  const decoded = tiles.map((t) => decodeDcc(encodeDcc(t)))
+  const within = decoded.every((t) => !exceedsUnitFrameLimit(t))
+  let same = exceedsUnitFrameLimit(big)
+  for (let d = 0; d < big.directions && same; d++)
+    for (let fr = 0; fr < big.framesPerDir && same; fr++) {
+      const o = big.frames[d][fr]
+      const m = new Map<string, number>()
+      for (const t of decoded) {
+        const g = t.frames[d][fr]
+        for (let y = 0; y < g.height; y++) for (let x = 0; x < g.width; x++) if (g.pixels[y * g.width + x]) m.set(`${g.offsetX + x},${g.offsetY + y}`, g.pixels[y * g.width + x])
+      }
+      let n = 0
+      for (let y = 0; y < o.height; y++) for (let x = 0; x < o.width; x++) { const v = o.pixels[y * o.width + x]; if (v) { n++; if (m.get(`${o.offsetX + x},${o.offsetY + y}`) !== v) same = false } }
+      if (n !== m.size) same = false
+    }
+  const biggest = Math.max(...big.frames.flat().map((f) => Math.max(f.width, f.height)))
+  check(tiles.length > 1 && within && same, `unit split: 2x Overseer whip arm (frames up to ${biggest} px) → ${tiles.length} tiles, all ≤${MAX_UNIT_FRAME} px after DCC encoding, re-assembled pixel-exact`)
+  const cof = decodeCof(vfs.read('data\\global\\monsters\\ZM\\COF\\ZMNUHTH.cof')!)
+  const tr = cof.layers.findIndex((l) => l.composit === 1)
+  const c2 = decodeCof(encodeCof(addTileLayers(cof, 1, [15, 14])))
+  const orderOk = c2.order.every((dir) => dir.every((fr) => { const i = fr.indexOf(1); return fr[i + 1] === 15 && fr[i + 2] === 14 }))
+  check(tr >= 0 && c2.layers.length === cof.layers.length + 2 && c2.framesPerDir === cof.framesPerDir && c2.directions === cof.directions && orderOk && c2.layers[c2.layers.length - 1].drawEffect === cof.layers[tr].drawEffect, 'unit split: COF gets the tile layers right after the split layer, same counts and draw effect')
+  // D2CMP's static DCC cell buffer holds 5,625 4x4 cells per direction; the game's widest monster direction (this whip) uses 5,429
+  const whipCells = dccDirectionCells(src)
+  check(whipCells > 5000 && whipCells < 5625 && MAX_DCC_DIRECTION_CELLS < 5625 && dccDirectionCells(big) > MAX_DCC_DIRECTION_CELLS, `unit split: DCC direction cell measure (Overseer whip ${whipCells} cells, 2x ${dccDirectionCells(big)} > limit ${MAX_DCC_DIRECTION_CELLS})`)
 }
 
 console.log(failures ? `${failures} FAILURES` : 'ALL PASSED')

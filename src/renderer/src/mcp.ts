@@ -43,6 +43,7 @@ import { EditTransfer, TransferMode } from '../../core/propagate'
 import { encodeDc6 } from '../../core/dc6'
 import { bestCellAnchor } from '../../core/dcc'
 import { encodeLayerFile, layerPath } from '../../core/unitLayer'
+import { dccDirectionCells, exceedsUnitFrameLimit, maxFrameSize, MAX_DCC_DIRECTION_CELLS, MAX_UNIT_FRAME } from '../../core/unitSplit'
 import { encodeDs1 } from '../../core/ds1'
 import { encodeDt1 } from '../../core/dt1'
 import { indexTiles, renderMap } from '../../core/mapRender'
@@ -625,6 +626,12 @@ const tools: Record<string, (a: Args) => Promise<Content[]> | Content[]> = {
     else {
       for (const l of d.layers) {
         if (!l.sprite || (!l.dirty && !a.all_parts)) continue
+        if (exceedsUnitFrameLimit(l.sprite)) {
+          const m = maxFrameSize(l.sprite)
+          fail(`${COMPOSITS[l.composit]} has frames up to ${m.width}×${m.height} px; the game halts on unit frames over ${MAX_UNIT_FRAME}×${MAX_UNIT_FRAME}. Nothing was written. Split the layer into tiles on free composits with .claude/skills/sprite-clone-resize/scripts/split-unit.ts (it also updates the COF and MonStats2), or make it smaller.`)
+        }
+        if (l.format === 'dcc' && dccDirectionCells(l.sprite) > MAX_DCC_DIRECTION_CELLS)
+          fail(`${COMPOSITS[l.composit]}: one direction spans ${dccDirectionCells(l.sprite)} 4×4 cells (all its frames together); the game crashes above about ${MAX_DCC_DIRECTION_CELLS} cells for a DCC. Nothing was written. Keep the frames closer together, or save this layer as DC6.`)
         if (l.format === 'dcc') for (const dd of l.sprite.frames) violations += bestCellAnchor(dd).violations
         files.push({
           rel: layerPath({ base: d.unit.base, token: d.unit.token }, COMPOSITS[l.composit], l.armtype, d.mode, l.weaponClass, l.format),
