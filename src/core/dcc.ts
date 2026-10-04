@@ -8,6 +8,7 @@
 
 import { BitReader, BitWriter } from './bits'
 import { expandFrame, Frame, Sprite } from './sprite'
+import { dccDirectionCells, exceedsUnitFrameLimit, MAX_DCC_DIRECTION_CELLS, MAX_UNIT_FRAME } from './unitSplit'
 
 const CRAZY_BITS = [0, 1, 2, 4, 6, 8, 10, 12, 14, 16, 20, 24, 26, 28, 30, 32]
 
@@ -355,7 +356,9 @@ function reduceCell(px: number[], palette?: Uint8Array): number[] {
   const counts = new Map<number, number>()
   for (const p of px) counts.set(p, (counts.get(p) ?? 0) + 1)
   if (counts.size <= 4) return px
-  const keep = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4).map((e) => e[0])
+  // Transparency is never traded for a colour: when a cell has transparent pixels, 0 is always one of the four kept.
+  const ranked = [...counts.entries()].sort((a, b) => b[1] - a[1]).map((e) => e[0])
+  const keep = counts.has(0) ? [0, ...ranked.filter((v) => v !== 0).slice(0, 3)] : ranked.slice(0, 4)
   const dist = (a: number, b: number) => {
     if (a === 0 || b === 0) return a === b ? 0 : 1e9
     if (!palette) return Math.abs(a - b)
@@ -373,12 +376,42 @@ export interface DccEncodeOptions {
   frameMeta?: DccFrameMeta[][]
 }
 
+/**
+ * A frame's size in DC6 run-length form. The game sizes its DCC decode buffers from these (frame CodedBytes,
+ * direction OutSizeCoded, file FinalDc6Size); wrong values crash it with "Sprite Decompression Error".
+ * Per row: transparent runs as one byte (0x80|n), opaque runs as n plus n bytes (runs of up to 127), no trailing
+ * transparent run, then an 0x80 end-of-row byte.
+ */
+export function dc6CodedSize(f: Frame): number {
+  let size = 0
+  for (let y = 0; y < f.height; y++) {
+    const row = y * f.width
+    let end = f.width
+    while (end > 0 && f.pixels[row + end - 1] === 0) end--
+    let x = 0
+    while (x < end) {
+      const opaque = f.pixels[row + x] !== 0
+      let n = 0
+      while (x < end && n < 127 && (f.pixels[row + x] !== 0) === opaque) {
+        x++
+        n++
+      }
+      size += opaque ? 1 + n : 1
+    }
+    size += 1
+  }
+  return size
+}
+
 export function encodeDcc(s: Sprite, opts: DccEncodeOptions = {}): Uint8Array {
-  const dirs: Uint8Array[] = []
-  for (let d = 0; d < s.directions; d++) dirs.push(encodeDirection(s.frames[d], opts.frameMeta?.[d], opts.palette))
+  // D2CMP.dll halts ("LINE: 1454") on unit frames over 256 px; such art must be split (unitSplit.ts: splitSprite + addTileLayers).
+  if (exceedsUnitFrameLimit(s)) console.warn(`encodeDcc: a frame is larger than ${MAX_UNIT_FRAME}×${MAX_UNIT_FRAME} px; the game will not load this DCC. Split the layer first (unitSplit.splitSprite).`)
+  // D2CMP.dll overruns a static buffer (ACCESS_VIOLATION) when a direction's frames span more than ~5,625 4x4 cells.
+  if (dccDirectionCells(s) > MAX_DCC_DIRECTION_CELLS) console.warn(`encodeDcc: a direction spans ${dccDirectionCells(s)} 4x4 cells (limit ${MAX_DCC_DIRECTION_CELLS}); the game crashes on it. Save it as DC6 instead.`)
+  const dirs = s.frames.map((fs, d) => encodeDirection(fs, opts.frameMeta?.[d], opts.palette))
   const headerSize = 15 + 4 * s.directions
   let total = headerSize
-  for (const b of dirs) total += b.length
+  for (const b of dirs) total += b.bytes.length
   const out = new Uint8Array(total)
   const dv = new DataView(out.buffer)
   out[0] = 0x74
@@ -386,26 +419,28 @@ export function encodeDcc(s: Sprite, opts: DccEncodeOptions = {}): Uint8Array {
   out[2] = s.directions
   dv.setUint32(3, s.framesPerDir, true)
   dv.setUint32(7, 1, true)
-  dv.setUint32(11, total - headerSize, true)
+  // FinalDc6Size: the whole sprite as a DC6 (24-byte header, then per frame a 4-byte pointer, 32-byte header, data, 3-byte terminator).
+  dv.setUint32(11, 24 + dirs.reduce((a, d) => a + d.coded.reduce((x, y) => x + y + 39, 0), 0), true)
   let p = headerSize
   dirs.forEach((b, d) => {
     dv.setUint32(15 + d * 4, p, true)
-    out.set(b, p)
-    p += b.length
+    out.set(b.bytes, p)
+    p += b.bytes.length
   })
   return out
 }
 
-function encodeDirection(framesIn: Frame[], meta: DccFrameMeta[] | undefined, palette?: Uint8Array): Uint8Array {
+function encodeDirection(framesIn: Frame[], meta: DccFrameMeta[] | undefined, palette?: Uint8Array): { bytes: Uint8Array; coded: number[] } {
   // Empty frames still need a 1x1 box in DCC; represent them as a single transparent pixel.
   const frames = framesIn.map((f) =>
     f.width && f.height ? f : { width: 1, height: 1, offsetX: f.offsetX, offsetY: f.offsetY, pixels: new Uint8Array(1) }
   )
   // Anchor the cell grid where it causes the fewest 4-colour violations, by padding the frame(s)
   // that define the direction box's left/top edge with transparent pixels.
-  const anchor = bestCellAnchor(framesIn)
   const minX = Math.min(...frames.map((f) => f.offsetX))
   const minY = Math.min(...frames.map((f) => f.offsetY))
+  // A direction with no opaque frame has nothing to anchor: (0,0) would stretch its 1x1 placeholders to the origin.
+  const anchor = framesIn.some((f) => f.width && f.height) ? bestCellAnchor(framesIn) : { x: minX, y: minY, violations: 0 }
   if (anchor.x < minX) {
     const i = frames.findIndex((f) => f.offsetX === minX)
     const f = frames[i]
@@ -513,7 +548,17 @@ function encodeDirection(framesIn: Frame[], meta: DccFrameMeta[] | undefined, pa
 
   const m = (f: number) => meta?.[f]
   const v0 = frames.map((_, f) => m(f)?.variable0 ?? 0)
-  const coded = frames.map((_, f) => m(f)?.codedBytes ?? 0)
+  // Measure the frames as encoded: 4-colour reduction can turn transparent pixels opaque.
+  const coded = frames.map((f, fi) => {
+    const pixels = new Uint8Array(f.width * f.height)
+    const ox = boxes[fi].xMin - db.xMin
+    const oy = boxes[fi].yMin - db.yMin
+    layouts[fi].cells.forEach((c, ci) => {
+      let k = 0
+      for (let y = 0; y < c.h; y++) for (let x = 0; x < c.w; x++) pixels[(c.y0 - oy + y) * f.width + (c.x0 - ox + x)] = cellPixels[fi][ci][k++]
+    })
+    return dc6CodedSize({ ...f, pixels })
+  })
   const opt = frames.map((_, f) => m(f)?.optionalData ?? new Uint8Array(0))
   const v0I = bitsIndexFor(Math.max(0, ...v0))
   const wI = bitsIndexFor(Math.max(...frames.map((f) => f.width)))
@@ -524,7 +569,8 @@ function encodeDirection(framesIn: Frame[], meta: DccFrameMeta[] | undefined, pa
   const codedI = bitsIndexFor(Math.max(0, ...coded))
 
   const bw = new BitWriter()
-  bw.bits(0, 32) // outsize coded, patched below
+  // OutSizeCoded: the direction as DC6 frames (each frame's data plus its 32-byte header and 3-byte terminator).
+  bw.bits(coded.reduce((a, c) => a + c + 35, 0), 32)
   bw.bits(2, 2) // compression: equal-cell stream present, no raw pixel stream
   for (const i of [v0I, wI, hI, xI, yI, optI, codedI]) bw.bits(i, 4)
   frames.forEach((f, i) => {
@@ -549,7 +595,5 @@ function encodeDirection(framesIn: Frame[], meta: DccFrameMeta[] | undefined, pa
   bw.append(pixelMask)
   bw.append(pixelCode1)
   bw.append(pixelCode2)
-  const bytes = bw.bytes()
-  new DataView(bytes.buffer).setUint32(0, bytes.length * 8, true)
-  return bytes
+  return { bytes: bw.bytes(), coded }
 }

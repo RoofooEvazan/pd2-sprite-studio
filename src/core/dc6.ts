@@ -100,7 +100,9 @@ function encodeFrameData(f: Frame): number[] {
 export function encodeDc6(s: Sprite, meta?: Partial<Dc6Meta>): Uint8Array {
   const m: Dc6Meta = { version: 6, flags: 1, encoding: 0, termination: 0xeeeeeeee, ...meta }
   const termByte = m.termination & 0xff
-  const frameList = s.frames.flat()
+  // The game's DC6 files never hold 0×0 frames (the smallest is 1×1), and D2's unit renderer doesn't cope with
+  // them: write an empty frame as one transparent pixel, as the DCC encoder does.
+  const frameList = s.frames.flat().map((f) => (f.width && f.height ? f : { width: 1, height: 1, offsetX: f.offsetX, offsetY: f.offsetY, pixels: new Uint8Array(1) }))
   const encoded = frameList.map(encodeFrameData)
   const headerSize = 24 + frameList.length * 4
   let size = headerSize

@@ -4,6 +4,7 @@ import { COMPOSITS } from '../../../core/cof'
 import { compositeFrame, directionBounds, frameToRgba, LayerInput, overlayAll, Rgba, sheet } from '../../../core/composite'
 import { encodeDc6 } from '../../../core/dc6'
 import { bestCellAnchor } from '../../../core/dcc'
+import { dccDirectionCells, exceedsUnitFrameLimit, maxFrameSize, MAX_DCC_DIRECTION_CELLS, MAX_UNIT_FRAME } from '../../../core/unitSplit'
 import { armtypeName, PART_LABELS } from '../names'
 import { api } from '../api'
 import { Background, encodeGif, rgbaToBytes, saveBytes, scaleRgba, withBackground } from '../imageExport'
@@ -110,6 +111,12 @@ export function ExportDialog() {
     let violations = 0
     for (const l of d.layers) {
       if (!l.sprite || (!l.dirty && !includeAll)) continue
+      if (exceedsUnitFrameLimit(l.sprite)) {
+        const m = maxFrameSize(l.sprite)
+        throw new Error(`${PART_LABELS[COMPOSITS[l.composit]] ?? COMPOSITS[l.composit]} has frames up to ${m.width}×${m.height} px. The game can't load frames over ${MAX_UNIT_FRAME}×${MAX_UNIT_FRAME}, so nothing was saved. Make it smaller, or split it across spare body-part slots (S1–S8).`)
+      }
+      if (l.format === 'dcc' && dccDirectionCells(l.sprite) > MAX_DCC_DIRECTION_CELLS)
+        throw new Error(`${COMPOSITS[l.composit]}: one direction spans ${dccDirectionCells(l.sprite)} 4×4 cells (all its frames together); the game crashes above about ${MAX_DCC_DIRECTION_CELLS} cells for a DCC. Nothing was written. Keep the frames closer together, or save this layer as DC6.`)
       if (l.format === 'dcc') for (const dir of l.sprite.frames) violations += bestCellAnchor(dir).violations
       files.push({
         rel: layerPath({ base: d.unit.base, token: d.unit.token }, COMPOSITS[l.composit], l.armtype, d.mode, l.weaponClass, l.format),
