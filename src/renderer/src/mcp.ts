@@ -14,6 +14,8 @@ import {
   getFrame,
   getState,
   goTo,
+  markTileExported,
+  tileExportFile,
   layerInputs,
   openAnim,
   openItem,
@@ -622,7 +624,10 @@ const tools: Record<string, (a: Args) => Promise<Content[]> | Content[]> = {
     const d = needDoc()
     let files: { rel: string; data: Uint8Array }[] = []
     let violations = 0
-    if (d.kind === 'item') files = [{ rel: d.path, data: encodeDc6(d.sprite, d.meta) }]
+    if (d.kind === 'item' && d.tile) {
+      const f = tileExportFile(d) ?? fail("Couldn't rebuild this tile set")
+      files = [f!]
+    } else if (d.kind === 'item') files = [{ rel: d.path, data: encodeDc6(d.sprite, d.meta) }]
     else {
       for (const l of d.layers) {
         if (!l.sprite || (!l.dirty && !a.all_parts)) continue
@@ -645,6 +650,7 @@ const tools: Record<string, (a: Args) => Promise<Content[]> | Content[]> = {
     }
     if (!files.length) fail('Nothing edited to export (pass all_parts: true to write every part).')
     const res = await api.exportPd2(files)
+    if (d.kind === 'item' && d.tile) markTileExported(d)
     if (d.kind === 'item') d.dirty = false
     else for (const l of d.layers) l.dirty = false
     setState({ version: getState().version + 1 })

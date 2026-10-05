@@ -23,7 +23,8 @@ export const TILE_PPU = 160 / Math.SQRT2
 export function guessRole(name: string): TileRole {
   const n = name.toLowerCase()
   if (/roof|ceiling/.test(n)) return 'roof'
-  if (/cliff|ledge|lower|pit|chasm|drop|underside|foundation|embank|overhang/.test(n)) return 'lower'
+  // Whole-word starts only: "capital" isn't a pit, "flower" isn't lower, "knowledge" isn't a ledge
+  if (/(?<![a-z])(cliff|ledge|lower|pit|chasm|drop|underside|foundation|embank|overhang)/.test(n)) return 'lower'
   if (/floor|ground|terrain|grass|dirt|path|road|pave|plaza|carpet|rug|water/.test(n)) return 'floor'
   if (/ignore|helper|camera|light|collider|proxy/.test(n)) return 'ignore'
   return 'wall'

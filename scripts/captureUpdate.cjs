@@ -27,11 +27,19 @@ app.whenReady().then(async () => {
   }
   try {
     await js(`localStorage.setItem('pd2ss.tipsSeen', '1'); for (let i = 0; i < 120 && !$('.big-card'); i++) await wait(250)`)
-    await js(`$('[aria-label="Check for updates"]').click()`)
+    await shot('update-home', 600)
+    await js(`[...document.querySelectorAll('header button')].find((b) => b.innerText.includes('Updates')).click()`)
     await shot('update-dialog', 3000)
     console.log('dialog text:', await js(`return $('.modal').innerText`))
     await js(`$('.modal .x').click(); await wait(200); $('[aria-label="Settings"]').click()`)
     await shot('update-settings', 1000)
+    // The editor's rail: open a map tile and look for the Updates button at the bottom
+    await js(`$('.modal .x')?.click(); await wait(300); [...document.querySelectorAll('.studio-card')].find((c) => c.innerText.includes('Edit map tiles')).click(); await wait(500)
+      const inp = $('.search-small input'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(inp, 'house1'); inp.dispatchEvent(new Event('input', { bubbles: true })); await wait(300);
+      [...document.querySelectorAll('.tp-file')].find((b) => b.title.toLowerCase().endsWith('int.dt1')).click(); for (let i = 0; i < 40 && !$('.tp-tile'); i++) await wait(250)
+      document.querySelector('.tp-tile').click(); for (let i = 0; i < 40 && !$('.pixel-canvas'); i++) await wait(250)`)
+    await shot('update-editor-rail', 1200)
+    console.log('rail has Updates:', await js(`return [...document.querySelectorAll('.rail-btn')].some((b) => b.innerText.includes('Updates'))`))
   } catch (e) {
     console.error('capture failed:', e)
   }

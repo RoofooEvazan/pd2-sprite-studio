@@ -10,6 +10,7 @@ import { TransformControls } from 'three/examples/jsm/controls/TransformControls
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js'
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js'
+import { MTLLoader } from 'three/examples/jsm/loaders/MTLLoader.js'
 import type { RenderImage } from '../../../core/renderImport'
 
 export type ShapeKind = 'box' | 'cylinder' | 'sphere' | 'cone' | 'capsule'
@@ -348,7 +349,17 @@ export class Studio {
       root = gltf.scene
       clips = gltf.animations
     } else if (ext === 'obj') {
-      root = new OBJLoader(manager).parse(new TextDecoder().decode(file.data))
+      // Materials and textures come from the .mtl named by "mtllib" (3ds Max and Blender both write one)
+      const text = new TextDecoder().decode(file.data)
+      const lib = /^\s*mtllib\s+(.+?)\s*$/m.exec(text)?.[1]?.toLowerCase()
+      const mtl = file.siblings.find((s) => /\.mtl$/i.test(s.name) && (!lib || s.name.toLowerCase() === lib || s.name.toLowerCase().endsWith(`/${lib}`))) ?? file.siblings.find((s) => /\.mtl$/i.test(s.name))
+      const loader = new OBJLoader(manager)
+      if (mtl) {
+        const materials = new MTLLoader(manager).parse(new TextDecoder().decode(mtl.data), '')
+        materials.preload()
+        loader.setMaterials(materials)
+      }
+      root = loader.parse(text)
     } else throw new Error(`Unsupported file type .${ext}`)
     setTimeout(() => made.forEach((u) => URL.revokeObjectURL(u)), 30000)
 

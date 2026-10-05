@@ -8,7 +8,7 @@ import { dccDirectionCells, exceedsUnitFrameLimit, maxFrameSize, MAX_DCC_DIRECTI
 import { armtypeName, PART_LABELS } from '../names'
 import { api } from '../api'
 import { Background, encodeGif, rgbaToBytes, saveBytes, scaleRgba, withBackground } from '../imageExport'
-import { AnimDoc, getState, ItemDoc, palette, setState, tintTable, toast, useStore } from '../store'
+import { AnimDoc, getState, ItemDoc, markTileExported, palette, setState, tileExportFile, tintTable, toast, useStore } from '../store'
 
 type Source = 'composite' | 'layer'
 
@@ -24,7 +24,7 @@ function animFrame(d: AnimDoc, source: Source, dir: number, f: number, bounds?: 
 }
 
 function stem(d: AnimDoc | ItemDoc): string {
-  if (d.kind === 'item') return d.path.substring(d.path.lastIndexOf('\\') + 1).replace(/\.dc6$/i, '')
+  if (d.kind === 'item') return d.path.substring(d.path.lastIndexOf('\\') + 1).replace(/\.(dc6|dt1)$/i, '') + (d.tile ? `_tile${d.tile.index}` : '')
   return `${d.unit.token}${d.mode}${d.wclass}`
 }
 
@@ -130,7 +130,12 @@ export function ExportDialog() {
     run(async () => {
       let files: { rel: string; data: Uint8Array }[] = []
       let note = ''
-      if (doc.kind === 'item') files = [{ rel: doc.path, data: dc6Bytes(doc) }]
+      if (doc.kind === 'item' && doc.tile) {
+        // a map tile: the whole tile set is written, with every tile edited this session
+        const f = tileExportFile(doc)
+        if (!f) return toast("Couldn't rebuild this tile set")
+        files = [f]
+      } else if (doc.kind === 'item') files = [{ rel: doc.path, data: dc6Bytes(doc) }]
       else {
         const r = layerFiles(doc)
         files = r.files
@@ -145,6 +150,7 @@ export function ExportDialog() {
       toast(`Saved ${res.written.length} file${res.written.length === 1 ? '' : 's'} to ${res.root}.${note}`)
       close()
       if (res.written[0]) api.reveal(res.written[0])
+      if (doc.kind === 'item' && doc.tile) markTileExported(doc)
       if (doc.kind === 'item') doc.dirty = false
       else for (const l of doc.layers) l.dirty = false
       setState({ version: getState().version + 1 })
@@ -152,7 +158,10 @@ export function ExportDialog() {
 
   const saveNative = () =>
     run(async () => {
-      if (doc.kind === 'item') saved(await saveBytes(`${stem(doc)}.dc6`, dc6Bytes(doc), 'dc6', 'DC6 sprite'))
+      if (doc.kind === 'item' && doc.tile) {
+        const f = tileExportFile(doc)
+        if (f) saved(await saveBytes(doc.path.substring(doc.path.lastIndexOf('\\') + 1), f.data, 'dt1', 'DT1 tile set'))
+      } else if (doc.kind === 'item') saved(await saveBytes(`${stem(doc)}.dc6`, dc6Bytes(doc), 'dc6', 'DC6 sprite'))
       else {
         const l = doc.layers.find((x) => x.composit === doc.active)
         if (!l?.sprite) return toast('Active layer is empty')
@@ -197,7 +206,8 @@ export function ExportDialog() {
               ) : (
                 <>
                   <p>
-                    <b>{doc.title}</b> will be saved as a game file.
+                    <b>{doc.title}</b> will be saved as a game file
+                    {doc.tile ? ' (the whole tile set, including any other tiles of it you edited)' : ''}.
                   </p>
                   <div className="muted tiny mono">{doc.path}</div>
                 </>
@@ -229,7 +239,7 @@ export function ExportDialog() {
               )}
               <div className="btn-row">
                 <button className="btn" disabled={busy} onClick={saveNative}>
-                  Save {isAnim ? 'just the part being edited' : 'the .dc6 file'} somewhere else…
+                  Save {isAnim ? 'just the part being edited' : doc.kind === 'item' && doc.tile ? 'the .dt1 file' : 'the .dc6 file'} somewhere else…
                 </button>
               </div>
             </details>

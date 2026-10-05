@@ -10,6 +10,7 @@ import { Editor } from './editor/Editor'
 import { Home } from './screens/Home'
 import { UnitPicker } from './screens/UnitPicker'
 import { ItemPicker } from './screens/ItemPicker'
+import { TilePicker } from './screens/TilePicker'
 import { Studio3D } from './studio/Studio'
 import { TileMaker } from './studio/TileMaker'
 import { IconButton, Kbd } from './ui'
@@ -31,6 +32,9 @@ import {
   init,
   moveFloating,
   pasteClip,
+  pixLassoCancel,
+  pixLassoClose,
+  pixLassoUndo,
   redo,
   selectAll,
   setState,
@@ -53,6 +57,7 @@ const KEYS: Record<string, Tool> = {
   s: 'select',
   a: 'lasso',
   w: 'wand',
+  p: 'pixlasso',
   m: 'move'
 }
 
@@ -68,6 +73,11 @@ function useShortcuts() {
       }
       if (s.screen !== 'editor' || !s.doc) return
       const k = e.key.toLowerCase()
+      if (s.pixLasso) {
+        if (k === 'enter') return (e.preventDefault(), pixLassoClose())
+        if (k === 'escape') return pixLassoCancel()
+        if (k === 'backspace') return (e.preventDefault(), pixLassoUndo())
+      }
       if (k === '\\') return setState({ showOriginal: true })
       if (e.ctrlKey && k === 'z') return (e.preventDefault(), e.shiftKey ? redo() : undo())
       if (e.ctrlKey && k === 'y') return (e.preventDefault(), redo())
@@ -124,6 +134,7 @@ const SHORTCUTS: [string, string][] = [
   ['R', 'Recolour one colour'],
   ['G', 'Fill'],
   ['S / A / W', 'Select: box, lasso, magic wand'],
+  ['P', 'Pixel lasso (click pixels, then the first one again to close)'],
   ['I', 'Pick a colour'],
   ['L / U', 'Line / box'],
   ['M', 'Move the frame'],
@@ -377,7 +388,9 @@ export function App() {
               <IconDownload size={14} /> Update to {update.latest.version}
             </button>
           ) : (
-            <IconButton icon={IconRefresh} label="Check for updates" onClick={() => setState({ showUpdate: true })} />
+            <button className="ibtn labelled" onClick={() => setState({ showUpdate: true })} data-tip="Check GitHub for a newer version">
+              <IconRefresh size={17} /> Updates
+            </button>
           )}
           <IconButton icon={IconSettings} label="Settings" onClick={() => setSettings(true)} />
         </header>
@@ -397,6 +410,8 @@ export function App() {
           <UnitPicker base="objects" />
         ) : screen === 'items' ? (
           <ItemPicker />
+        ) : screen === 'dt1' ? (
+          <TilePicker />
         ) : (
           <Home />
         )}

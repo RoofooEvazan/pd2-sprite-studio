@@ -1,0 +1,47 @@
+newmtl flagstone
+Kd 1 1 1
+Ka 0 0 0
+Ks 0.05 0.05 0.05
+map_Kd textures/flagstone.png
+
+newmtl dirt
+Kd 1 1 1
+Ka 0 0 0
+Ks 0.05 0.05 0.05
+map_Kd textures/dirt.png
+
+newmtl stone_bricks
+Kd 1 1 1
+Ka 0 0 0
+Ks 0.05 0.05 0.05
+map_Kd textures/stone_bricks.png
+
+newmtl cliff_rock
+Kd 1 1 1
+Ka 0 0 0
+Ks 0.05 0.05 0.05
+map_Kd textures/cliff_rock.png
+
+newmtl roof_shingles
+Kd 1 1 1
+Ka 0 0 0
+Ks 0.05 0.05 0.05
+map_Kd textures/roof_shingles.png
+
+newmtl wood
+Kd 1 1 1
+Ka 0 0 0
+Ks 0.05 0.05 0.05
+map_Kd textures/wood.png
+
+newmtl gravestone
+Kd 1 1 1
+Ka 0 0 0
+Ks 0.05 0.05 0.05
+map_Kd textures/gravestone.png
+
+newmtl torch_flame
+Kd 1 1 1
+Ka 0 0 0
+Ks 0.05 0.05 0.05
+map_Kd textures/torch_flame.png

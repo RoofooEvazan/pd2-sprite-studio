@@ -8,6 +8,7 @@ import { COMPOSITS, decodeCof, encodeCof, decodeAnimData } from '../src/core/cof
 import { buildCatalog, cofPath } from '../src/core/catalog'
 import { decodeLayerFile, encodeLayerFile, layerFormat, layerPath } from '../src/core/unitLayer'
 import { compositeFrame, LayerInput } from '../src/core/composite'
+import { frameToTile, sameTilePixels, tileToFrame } from '../src/core/tileEdit'
 import { decodeDcc, encodeDcc } from '../src/core/dcc'
 import { addTileLayers, dccDirectionCells, exceedsUnitFrameLimit, MAX_DCC_DIRECTION_CELLS, MAX_UNIT_FRAME, splitSprite } from '../src/core/unitSplit'
 import { expandFrame, spriteBounds } from '../src/core/sprite'
@@ -254,6 +255,47 @@ const tr = decodeDcc(vfs.read('data\\global\\chars\\BA\\TR\\BATRLITNUHTH.dcc')!)
   for (let i = 3; i < im.data.length; i += 4) if (im.data[i]) opaque++
   writePng(`${OUT}/mephisto_nu_d0.png`, im.width, im.height, im.data)
   check(opaque > 3000, `Mephisto NU composite: ${im.width}x${im.height}, ${opaque} opaque px (out-test/mephisto_nu_d0.png)`)
+}
+
+// --- DT1 tiles in the sprite editor: tile → picture → tile is exact; new art above a wall gets its own blocks
+{
+  const dt1s = new Set<string>()
+  for (const a of vfs.archives) for (const f of a.listfile()) if (/\.dt1$/i.test(f)) dt1s.add(f.toLowerCase())
+  const sample = [...dt1s].filter((_, i) => i % 4 === 0)
+  let tiles = 0
+  let exact = 0
+  let files = 0
+  let filesExact = 0
+  for (const f of sample) {
+    const data = vfs.read(f)
+    if (!data) continue
+    let d
+    try {
+      d = decodeDt1(data)
+    } catch {
+      continue // legacy v4 files
+    }
+    files++
+    const back = { ...d, tiles: d.tiles.map((t) => frameToTile(t, tileToFrame(t))) }
+    for (let i = 0; i < d.tiles.length; i++) {
+      tiles++
+      if (sameTilePixels(d.tiles[i], back.tiles[i])) exact++
+    }
+    const a = encodeDt1(d)
+    const b = encodeDt1(back)
+    if (a.length === b.length && a.every((v, i) => v === b[i])) filesExact++
+  }
+  check(tiles > 1000 && exact === tiles && filesExact === files, `DT1 tile editing: ${exact}/${tiles} tiles in ${files} files round-trip through the editor picture, ${filesExact}/${files} files byte-identical`)
+  const wall = decodeDt1(vfs.read('data\\global\\tiles\\guild\\house1\\int.dt1')!).tiles.find((t) => t.orientation === 2)!
+  const fr = tileToFrame(wall)
+  const topY = Math.min(...wall.blocks.map((b) => b.y))
+  const px = 120
+  const py = topY - 10 // in the headroom above the wall
+  fr.pixels[(py - fr.offsetY) * fr.width + (px - fr.offsetX)] = 200
+  const edited = decodeDt1(encodeDt1({ version1: 7, version2: 6, tiles: [frameToTile(wall, fr)] })).tiles[0]
+  const back = tileToFrame(edited)
+  const got = back.pixels[(py - back.offsetY) * back.width + (px - back.offsetX)]
+  check(got === 200 && edited.height <= wall.height, `DT1 tile editing: a pixel painted above a wall is saved in a new block (height ${wall.height} → ${edited.height})`)
 }
 
 // --- Tile Maker: slice a synthetic scene, write DT1 + DS1, re-render with game rules, compare

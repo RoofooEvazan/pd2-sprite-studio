@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { IconArrowRight, IconBox, IconLayoutGrid, IconRotate360, IconGhost2, IconHistory, IconPencil, IconSearch, IconShirt, IconSword } from '@tabler/icons-react'
+import { IconBrush, IconArrowRight, IconBox, IconLayoutGrid, IconRotate360, IconGhost2, IconHistory, IconPencil, IconSearch, IconShirt, IconSword } from '@tabler/icons-react'
 import { goTo, openAnim, openItem, setState, useStore } from '../store'
 import { itemThumb, unitPortrait } from '../thumbs'
 import { LazyImg } from '../ui'
@@ -104,6 +104,14 @@ export function Home() {
                   <span>
                     <span className="bc-title">Tile Maker</span>
                     <span className="bc-sub">Import a scene from Blender or 3ds Max and split it into map tiles: .dt1 floors, walls, lower walls and roofs, plus a ready-placed .ds1 map piece</span>
+                  </span>
+                  <IconArrowRight size={18} />
+                </button>
+                <button className="studio-card" onClick={() => goTo('dt1')}>
+                  <IconBrush size={26} stroke={1.5} />
+                  <span>
+                    <span className="bc-title">Edit map tiles</span>
+                    <span className="bc-sub">Open any .dt1 tile (floors, walls, roofs) and paint, lasso and mirror it pixel by pixel, then save the tile set back</span>
                   </span>
                   <IconArrowRight size={18} />
                 </button>

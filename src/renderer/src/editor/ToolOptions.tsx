@@ -5,6 +5,9 @@ import {
   commitFloating,
   copySelection,
   flipFloating,
+  pixLassoClose,
+  pixLassoUndo,
+  wallSlope,
   LockMode,
   palette,
   pasteClip,
@@ -94,6 +97,8 @@ export function ToolOptions() {
   const hasSel = useStore((s) => !!s.selection || !!s.floating)
   const floating = useStore((s) => !!s.floating)
   const hasClip = useStore((s) => !!s.clipboard)
+  const pixLasso = useStore((s) => s.pixLasso)
+  const wallTile = useStore((s) => s.doc?.kind === 'item' && !!s.doc.tile) && wallSlope() !== null
   const view = useStore((s) => s.view)
   const g = groupOf(tool)
   const set = (t: Tool) => setState({ tool: t })
@@ -163,7 +168,8 @@ export function ToolOptions() {
             small
             options={[
               { value: 'select', label: 'Box' },
-              { value: 'lasso', label: 'Lasso' },
+              { value: 'lasso', label: 'Lasso', tip: 'Drag a freehand outline' },
+              { value: 'pixlasso', label: 'Pixel lasso', tip: 'Click pixels one by one (or drag over them) to trace an outline; click the first pixel again to close the loop' },
               { value: 'wand', label: 'Magic wand', tip: 'Selects a same-coloured area. Ctrl+click selects that colour everywhere' }
             ]}
             value={tool}
@@ -180,6 +186,15 @@ export function ToolOptions() {
               <button className="chip-btn" onClick={() => flipFloating('v')} data-tip="V">
                 <IconFlipHorizontal size={15} /> Flip upside down
               </button>
+              {wallTile && (
+                <button
+                  className="chip-btn"
+                  onClick={() => flipFloating('wall')}
+                  data-tip="Mirror along the wall: left and right swap while everything stays on the wall's slant (e.g. an arch rising up-left now rises up-right)"
+                >
+                  <IconArrowsRightLeft size={15} /> Mirror along wall
+                </button>
+              )}
             </>
           )}
           {hasClip && (
@@ -202,7 +217,20 @@ export function ToolOptions() {
               <IconX size={15} /> Deselect
             </button>
           )}
-          {!hasSel && !hasClip && <Hint>Drag to select. Shift adds to the selection. Drag inside it to move.</Hint>}
+          {tool === 'pixlasso' && pixLasso && (
+            <>
+              <button className="chip-btn accent" onClick={pixLassoClose} data-tip="Enter">
+                Close loop
+              </button>
+              <button className="chip-btn" onClick={pixLassoUndo} data-tip="Backspace or right-click">
+                Undo point
+              </button>
+            </>
+          )}
+          {tool === 'pixlasso' && !pixLasso && !hasSel && (
+            <Hint>Click pixels (or drag over them) to trace an outline · click the first pixel again to close · right-click removes a point</Hint>
+          )}
+          {tool !== 'pixlasso' && !hasSel && !hasClip && <Hint>Drag to select. Shift adds to the selection. Drag inside it to move.</Hint>}
         </>
       )
       break

@@ -36,6 +36,8 @@ export interface Catalog {
   items: ItemEntry[]
   colors: { code: string; name: string }[]
   dc6Files: string[]
+  /** every map tile set (.dt1), for the tile editor */
+  dt1Files: string[]
 }
 
 export const CHAR_NAMES: Record<string, string> = {
@@ -133,6 +135,7 @@ export function buildCatalog(files: string[], readTxt: (name: string) => Uint8Ar
     return u
   }
   const dc6Files: string[] = []
+  const dt1Files: string[] = []
   const seen = new Set<string>()
   const cofRe = /^data\\global\\(chars|monsters|objects)\\([^\\]+)\\cof\\([^\\]+)\.cof$/i
   const dccRe = /^data\\global\\(chars|monsters|objects)\\([^\\]+)\\([^\\]+)\\([^\\]+)\.(dcc|dc6)$/i
@@ -169,6 +172,7 @@ export function buildCatalog(files: string[], readTxt: (name: string) => Uint8Ar
       continue
     }
     if (/\.dc6$/i.test(f)) dc6Files.push(f)
+    else if (/\.dt1$/i.test(f)) dt1Files.push(f)
   }
 
   // Labels
@@ -247,5 +251,5 @@ export function buildCatalog(files: string[], readTxt: (name: string) => Uint8Ar
   const colorsT = parseTxt(readTxt('colors'))
   const colors = colorsT.rows.map((r) => ({ name: r[0], code: r[1] })).filter((c) => c.code)
 
-  return { units, items, colors, dc6Files: dc6Files.sort() }
+  return { units, items, colors, dc6Files: dc6Files.sort(), dt1Files: dt1Files.sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase())) }
 }

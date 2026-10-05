@@ -1013,6 +1013,11 @@ button.crumb:hover {
 .opt-hint {
   color: var(--muted);
   font-size: 12.5px;
+  /* one line, so the canvas below doesn't jump when the options change */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 .mini-swatch {
   width: 22px;
@@ -2571,4 +2576,121 @@ button.canvas-chip:hover {
 
 .error-text {
   color: #e8806f;
+}
+
+/* Map tile browser */
+.tp-main {
+  display: grid;
+  grid-template-columns: minmax(240px, 320px) 1fr;
+  gap: 16px;
+  min-height: 0;
+  flex: 1;
+  padding: 0 24px 24px;
+}
+.tp-files {
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 4px;
+  max-height: calc(100vh - 170px);
+}
+.tp-file {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  text-align: left;
+  padding: 5px 8px;
+  border-radius: 6px;
+  font-size: 12.5px;
+  font-family: var(--mono, ui-monospace, monospace);
+  color: var(--muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+  word-break: break-all;
+}
+.tp-file:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+.tp-file.on {
+  background: var(--surface-2);
+  color: var(--text);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+.tp-edited {
+  margin-left: auto;
+  font-size: 10.5px;
+  font-family: inherit;
+  color: #1a1408;
+  background: var(--accent);
+  border-radius: 999px;
+  padding: 0 6px;
+}
+.tp-tiles {
+  overflow: auto;
+  max-height: calc(100vh - 170px);
+  min-width: 0;
+}
+.tp-tiles .picker-filters {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 0 0 10px;
+}
+.tp-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+}
+.tp-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  cursor: pointer;
+}
+.tp-tile:hover {
+  border-color: var(--accent-line);
+}
+.tp-pic {
+  width: 130px;
+  height: 150px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.tp-pic img {
+  max-width: 100%;
+  max-height: 100%;
+  image-rendering: pixelated;
+}
+.tp-pic.floor {
+  align-items: center;
+}
+.tp-label {
+  font-size: 12px;
+  text-align: center;
+}
+
+/* Updates button in the editor rail: a dot when a new version is waiting */
+.rail-icon-wrap {
+  position: relative;
+  display: inline-flex;
+}
+.rail-dot {
+  position: absolute;
+  top: -2px;
+  right: -4px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 2px var(--surface);
 }

@@ -1,5 +1,5 @@
 import type { Icon } from '@tabler/icons-react'
-import {
+import { IconRefresh,
   IconArrowsMove,
   IconArrowsRightLeft,
   IconBorderOuter,
@@ -38,7 +38,7 @@ export const GROUPS: ToolGroup[] = [
   { id: 'shade', label: 'Shade', icon: IconContrast2, tools: ['shade'], key: 'D', tip: 'Drag to lighten, right-drag to darken, keeping the same colour family' },
   { id: 'recolour', label: 'Recolour', icon: IconPalette, tools: ['ramp', 'replace'], key: 'J', tip: 'Change the colour of a whole material or one colour' },
   { id: 'fill', label: 'Fill', icon: IconBucketDroplet, tools: ['fill', 'fillAll'], key: 'G', tip: 'Fill an area with colour' },
-  { id: 'select', label: 'Select', icon: IconMarquee2, tools: ['select', 'lasso', 'wand'], key: 'S', tip: 'Select pixels to move, copy, flip or mirror' },
+  { id: 'select', label: 'Select', icon: IconMarquee2, tools: ['select', 'lasso', 'pixlasso', 'wand'], key: 'S', tip: 'Select pixels to move, copy, flip or mirror' },
   { id: 'pick', label: 'Pick', icon: IconColorPicker, tools: ['picker'], key: 'I', tip: 'Pick a colour from the sprite' },
   { id: 'shapes', label: 'Shapes', icon: IconShape, tools: ['line', 'rect', 'rectFill'], key: 'L', tip: 'Lines and boxes' },
   { id: 'move', label: 'Move', icon: IconArrowsMove, tools: ['move'], key: 'M', tip: 'Drag to shift the whole frame' }
@@ -72,6 +72,7 @@ export function ToolRail() {
         </button>
       ))}
       <div className="rail-spacer" />
+      <UpdatesRailButton />
       <Popover
         trigger={(open, toggle) => (
           <button className={`rail-btn${open ? ' on' : ''}`} onClick={toggle} data-tip="More tools" data-tip-side="right">
@@ -109,6 +110,25 @@ export function ToolRail() {
         )}
       </Popover>
     </div>
+  )
+}
+
+/** Updates, like DS1 Studio / PD2 Planner: always visible, with a dot when a new version is waiting. */
+function UpdatesRailButton() {
+  const update = useStore((s) => s.update)
+  return (
+    <button
+      className="rail-btn"
+      onClick={() => setState({ showUpdate: true })}
+      data-tip={update?.latest ? `PD2 Sprite Studio ${update.latest.version} is available: click to install it` : 'Check for updates'}
+      data-tip-side="right"
+    >
+      <span className="rail-icon-wrap">
+        <IconRefresh size={21} stroke={1.6} />
+        {update?.latest && <span className="rail-dot" />}
+      </span>
+      <span>Updates</span>
+    </button>
   )
 }
 

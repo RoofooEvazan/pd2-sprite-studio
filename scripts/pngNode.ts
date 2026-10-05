@@ -24,7 +24,8 @@ function chunk(type: string, data: Buffer): Buffer {
   c.writeUInt32BE(crc(td))
   return Buffer.concat([len, td, c])
 }
-export function writePng(file: string, w: number, h: number, rgba: Uint8Array | Uint8ClampedArray): void {
+/** RGBA pixels as PNG file bytes. */
+export function encodePng(w: number, h: number, rgba: Uint8Array | Uint8ClampedArray): Buffer {
   const raw = Buffer.alloc((w * 4 + 1) * h)
   for (let y = 0; y < h; y++) {
     raw[y * (w * 4 + 1)] = 0
@@ -35,13 +36,9 @@ export function writePng(file: string, w: number, h: number, rgba: Uint8Array | 
   ihdr.writeUInt32BE(h, 4)
   ihdr[8] = 8
   ihdr[9] = 6
-  fs.writeFileSync(
-    file,
-    Buffer.concat([
-      Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
-      chunk('IHDR', ihdr),
-      chunk('IDAT', zlib.deflateSync(raw)),
-      chunk('IEND', Buffer.alloc(0))
-    ])
-  )
+  return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', ihdr), chunk('IDAT', zlib.deflateSync(raw)), chunk('IEND', Buffer.alloc(0))])
+}
+
+export function writePng(file: string, w: number, h: number, rgba: Uint8Array | Uint8ClampedArray): void {
+  fs.writeFileSync(file, encodePng(w, h, rgba))
 }

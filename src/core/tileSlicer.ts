@@ -160,9 +160,24 @@ export function sliceScene(input: SliceInput, opts: SliceOptions): SliceResult {
   const blocked = new Map<number, Uint8Array>() // cell -> 25 flags
   const cellId = (cx: number, cz: number) => cz * mw + cx
 
+  // Neighbouring diamonds share their boundary pixels, so a floor ending exactly on a grid line leaves a 1-px line in
+  // the next cell. A cell only gets a tile when it has pixels clearly inside its own diamond.
+  const ownsPixels = (img: Uint8Array, bx: number, by: number) => {
+    let n = 0
+    for (let ly = 0; ly < 80; ly++)
+      for (let lx = 0; lx < 160; lx++) {
+        if (Math.abs(lx + 0.5 - 80) / 80 + Math.abs(ly + 0.5 - 40) / 40 > 0.94) continue
+        const x = bx + lx
+        const y = by + ly
+        if (x >= 0 && y >= 0 && x < iw && y < ih && img[y * iw + x] && ++n >= 4) return true
+      }
+    return false
+  }
+
   if (input.floor)
     for (let cz = 0; cz < H; cz++)
       for (let cx = 0; cx < W; cx++) {
+        if (!ownsPixels(input.floor, boxX(cx, cz), boxY(cx, cz))) continue
         const blocks = sampleDiamond(input.floor, iw, ih, boxX(cx, cz), boxY(cx, cz))
         if (blocks.length) floorTiles.set(cellId(cx, cz), floorLikeTile(0, 3, blocks))
       }
@@ -170,6 +185,7 @@ export function sliceScene(input: SliceInput, opts: SliceOptions): SliceResult {
   if (input.roof)
     for (let cz = 0; cz < H; cz++)
       for (let cx = 0; cx < W; cx++) {
+        if (!ownsPixels(input.roof, boxX(cx, cz), boxY(cx, cz) - input.roofPx)) continue
         const blocks = sampleDiamond(input.roof, iw, ih, boxX(cx, cz), boxY(cx, cz) - input.roofPx)
         if (blocks.length) roofTiles.set(cellId(cx, cz), floorLikeTile(15, 5, blocks, input.roofPx))
       }

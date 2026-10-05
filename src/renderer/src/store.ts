@@ -8,21 +8,18 @@ import { DccFrameMeta } from '../../core/dcc'
 import { COLORMAP_FILES, colormapPath, Palette, PALETTE_NAMES, palettePath, parsePalDat } from '../../core/palette'
 import { cloneFrame, cloneSprite, expandFrame, Frame, Sprite, trimFrame } from '../../core/sprite'
 import { mirrorDir } from '../../core/edit'
+import { decodeDt1, Dt1, encodeDt1, ORIENTATION_NAMES } from '../../core/dt1'
+import { frameToTile, tileToFrame } from '../../core/tileEdit'
+import { polygonSelection, unionSelection } from './selectionShapes'
 import type { LayerInput } from '../../core/composite'
 
-export type Tool = 'pencil' | 'eraser' | 'fill' | 'fillAll' | 'picker' | 'line' | 'rect' | 'rectFill' | 'replace' | 'move' | 'shade' | 'ramp' | 'select' | 'lasso' | 'wand'
+export type Tool = 'pencil' | 'eraser' | 'fill' | 'fillAll' | 'picker' | 'line' | 'rect' | 'rectFill' | 'replace' | 'move' | 'shade' | 'ramp' | 'select' | 'lasso' | 'pixlasso' | 'wand'
 
 export type LockMode = 'off' | 'opaque' | 'transparent' | 'color' | 'ramp'
 export type Scope = 'frame' | 'dir' | 'all'
 
-/** Sprite-space selection mask. */
-export interface Selection {
-  x0: number
-  y0: number
-  w: number
-  h: number
-  mask: Uint8Array
-}
+import type { Selection } from './selectionShapes'
+export type { Selection } from './selectionShapes'
 
 /** Pixels lifted or pasted, floating above the active frame until committed. */
 export interface Floating {
@@ -69,6 +66,14 @@ export interface ItemDoc {
   meta: Dc6Meta
   original: Sprite
   dirty: boolean
+  /** set when this "item" is a DT1 map tile opened for editing */
+  tile?: TileRef
+}
+
+/** A DT1 tile being edited: the tile set it lives in and its position there. */
+export interface TileRef {
+  dt1Path: string
+  index: number
 }
 
 export interface AnimLayer {
@@ -170,12 +175,14 @@ export interface State {
   recent: RecentEntry[]
   /** open the 3D render import dialog, targeting this body part */
   renderImport: { composit: number } | null
+  /** pixel lasso being traced (sprite space), closed into a selection by returning to its first pixel */
+  pixLasso: { points: { x: number; y: number }[]; add: boolean } | null
   /** a newer release found by the startup check */
   update: UpdateCheck | null
   showUpdate: boolean
 }
 
-export type Screen = 'home' | 'chars' | 'monsters' | 'objects' | 'items' | 'editor' | '3d' | 'tiles'
+export type Screen = 'home' | 'chars' | 'monsters' | 'objects' | 'items' | 'editor' | '3d' | 'tiles' | 'dt1'
 
 export type RecentEntry =
   | { kind: 'item'; title: string; path: string; code: string; name: string }
@@ -227,6 +234,7 @@ const initial: State = {
   playing: false,
   recent: loadRecent(),
   renderImport: null,
+  pixLasso: null,
   update: null,
   showUpdate: false
 }
@@ -389,6 +397,149 @@ export async function openItem(item: ItemEntry | null, path: string): Promise<vo
   } catch (e) {
     toast(`Could not decode ${path}: ${e}`)
   }
+}
+
+// ---------------------------------------------------------------------------------------------
+// DT1 map tiles (edited as single-frame "items")
+
+/** Tile sets with edits made this session, by archive path: edits carry over between tiles of the same DT1. */
+const editedDt1 = new Map<string, Dt1>()
+
+async function dt1For(path: string): Promise<Dt1 | null> {
+  const key = path.toLowerCase()
+  const cached = editedDt1.get(key)
+  if (cached) return cached
+  const data = await readGameFile(path)
+  return data ? decodeDt1(data) : null
+}
+
+/** The open tile's DT1 with the current edits written into it. */
+function dt1WithEdits(d: ItemDoc): Dt1 | null {
+  if (!d.tile) return null
+  const base = editedDt1.get(d.tile.dt1Path.toLowerCase()) ?? tileSets.get(d.tile.dt1Path.toLowerCase())
+  if (!base) return null
+  const tiles = base.tiles.slice()
+  tiles[d.tile.index] = frameToTile(base.tiles[d.tile.index], d.sprite.frames[0][0])
+  return { ...base, tiles }
+}
+/** The decoded tile set each open tile came from (before this session's edits to it). */
+const tileSets = new Map<string, Dt1>()
+
+/** Keep the open tile's edits when switching to another tile (they go into the next export of that DT1). */
+function stashTileEdits(): void {
+  const d = state.doc
+  if (d?.kind !== 'item' || !d.tile || !d.dirty) return
+  const dt1 = dt1WithEdits(d)
+  if (dt1) editedDt1.set(d.tile.dt1Path.toLowerCase(), dt1)
+}
+
+/** True when this session has edits to the DT1 that haven't been exported yet. */
+export function hasTileEdits(path: string): boolean {
+  return editedDt1.has(path.toLowerCase())
+}
+
+/** Palette a tile set is drawn with, from its folder (act1…act5; the expansion uses Act 5's). */
+export function tilePalette(path: string): string {
+  const p = path.toLowerCase()
+  const act = /\\act([1-5])\\/.exec(p)?.[1]
+  if (act) return `ACT${act}`
+  if (/\\expansion\\/.test(p)) return 'ACT5'
+  return 'ACT1'
+}
+
+export async function openTile(path: string, index: number): Promise<void> {
+  const cur = state.doc
+  const sameSet = cur?.kind === 'item' && cur.tile?.dt1Path.toLowerCase() === path.toLowerCase()
+  if (sameSet) stashTileEdits()
+  else if (!confirmDiscard()) return
+  else stashTileEdits()
+  let dt1: Dt1 | null
+  try {
+    dt1 = await dt1For(path)
+  } catch (e) {
+    return toast(`Could not read ${path}: ${e}`)
+  }
+  if (!dt1 || !dt1.tiles[index]) return toast(`Tile not found in ${path}`)
+  if (!tileSets.has(path.toLowerCase())) tileSets.set(path.toLowerCase(), dt1)
+  const t = dt1.tiles[index]
+  const frame = tileToFrame(t)
+  const sprite: Sprite = { directions: 1, framesPerDir: 1, frames: [[frame]] }
+  const file = path.substring(path.lastIndexOf('\\') + 1)
+  setState({
+    doc: {
+      kind: 'item',
+      title: `${file} · ${ORIENTATION_NAMES[t.orientation] ?? `orientation ${t.orientation}`} ${t.mainIndex}/${t.subIndex}`,
+      path,
+      item: null,
+      sprite,
+      meta: { version: 6, flags: 1, encoding: 0, termination: 0xeeeeeeee },
+      original: cloneSprite(sprite),
+      dirty: hasTileEdits(path),
+      tile: { dt1Path: path, index }
+    },
+    colormap: '',
+    tintCode: '',
+    paletteName: tilePalette(path),
+    zoom: Math.max(2, Math.min(8, Math.floor(560 / Math.max(frame.height, frame.width / 1.6, 1)))),
+    ...resetEditState(),
+    screen: 'editor',
+    inspectorTab: 'colours'
+  })
+}
+
+/** The open tile's whole DT1 (with every edit of this session), ready to write. */
+export function tileExportFile(d: ItemDoc): { rel: string; data: Uint8Array } | null {
+  const dt1 = dt1WithEdits(d)
+  if (!d.tile || !dt1) return null
+  return { rel: d.tile.dt1Path, data: encodeDt1(dt1) }
+}
+
+/** After an export: the written DT1 becomes the base for further edits this session. */
+export function markTileExported(d: ItemDoc): void {
+  const dt1 = dt1WithEdits(d)
+  if (!d.tile || !dt1) return
+  editedDt1.delete(d.tile.dt1Path.toLowerCase())
+  tileSets.set(d.tile.dt1Path.toLowerCase(), dt1)
+  // what's on screen is now the saved state
+  const t = dt1.tiles[d.tile.index]
+  d.sprite.frames[0][0] = tileToFrame(t)
+  d.original = cloneSprite(d.sprite)
+}
+
+// ---------------------------------------------------------------------------------------------
+// Pixel lasso: an outline traced pixel by pixel, closed by returning to its first pixel
+
+export function pixLassoAdd(p: { x: number; y: number }, add = false): void {
+  const cur = state.pixLasso
+  if (!cur) return setState({ pixLasso: { points: [p], add }, version: state.version + 1 })
+  const first = cur.points[0]
+  const last = cur.points[cur.points.length - 1]
+  if (last.x === p.x && last.y === p.y) return
+  if (first.x === p.x && first.y === p.y && cur.points.length >= 3) return pixLassoClose()
+  setState({ pixLasso: { ...cur, points: [...cur.points, p] }, version: state.version + 1 })
+}
+
+export function pixLassoUndo(): void {
+  const cur = state.pixLasso
+  if (!cur) return
+  setState({ pixLasso: cur.points.length > 1 ? { ...cur, points: cur.points.slice(0, -1) } : null, version: state.version + 1 })
+}
+
+export function pixLassoCancel(): void {
+  if (state.pixLasso) setState({ pixLasso: null, version: state.version + 1 })
+}
+
+/** Close the loop and select everything inside it (outline included). */
+export function pixLassoClose(): void {
+  const cur = state.pixLasso
+  if (!cur) return
+  if (cur.points.length < 3) {
+    toast('Click at least three pixels to make a loop')
+    return
+  }
+  commitFloating()
+  const sel = polygonSelection(cur.points)
+  setState({ pixLasso: null, selection: cur.add ? unionSelection(state.selection, sel) : sel, version: state.version + 1 })
 }
 
 export function defaultArmtype(unit: UnitEntry, comp: string, mode: string, wclass: string): string | null {
@@ -802,7 +953,45 @@ export function moveFloating(dx: number, dy: number): void {
   setState({ floating: { ...fl, x: fl.x + dx, y: fl.y + dy }, version: state.version + 1 })
 }
 
-export function flipFloating(axis: 'h' | 'v'): void {
+/** Wall tiles' base line: y change per pixel to the right (right walls run down-right, left walls up-right). */
+export function wallSlope(): number | null {
+  const d = state.doc
+  if (d?.kind !== 'item' || !d.tile) return null
+  const set = editedDt1.get(d.tile.dt1Path.toLowerCase()) ?? tileSets.get(d.tile.dt1Path.toLowerCase())
+  const o = set?.tiles[d.tile.index]?.orientation ?? -1
+  if ([2, 6, 9, 17].includes(o)) return 0.5
+  if ([1, 5, 8, 16].includes(o)) return -0.5
+  return null
+}
+
+/**
+ * Flip the selection (lifting it first). 'h' / 'v' flip the picture; 'wall' mirrors it along an isometric wall:
+ * sideways, with each column moved up or down so anything on the wall face stays on the wall's diagonal
+ * (what was on the left end of a wall ends up on the right end, at the same height above the base).
+ */
+export function flipFloating(axis: 'h' | 'v' | 'wall'): void {
+  if (axis === 'wall') {
+    const slope = wallSlope() ?? 0.5
+    if (!state.floating && !liftSelection()) return
+    const fl = state.floating!
+    // column x moves to w-1-x; keep its height above the base line → shift by slope·(newX − x)
+    const shift = (x: number) => Math.floor(slope * (fl.w - 1 - 2 * x))
+    let lo = Infinity
+    let hi = -Infinity
+    for (let x = 0; x < fl.w; x++) {
+      lo = Math.min(lo, shift(x))
+      hi = Math.max(hi, shift(x))
+    }
+    const h = fl.h + hi - lo
+    const px = new Uint8Array(fl.w * h)
+    for (let y = 0; y < fl.h; y++)
+      for (let x = 0; x < fl.w; x++) {
+        const v = fl.pixels[y * fl.w + x]
+        if (v) px[(y + shift(x) - lo) * fl.w + (fl.w - 1 - x)] = v
+      }
+    setState({ floating: { ...fl, y: fl.y + lo, h, pixels: px }, version: state.version + 1 })
+    return
+  }
   if (!state.floating && !liftSelection()) return
   const fl = state.floating!
   const px = new Uint8Array(fl.pixels.length)

@@ -5,6 +5,7 @@ import { floodFill, line, plot, rect, replaceColor } from '../../../core/draw'
 import { rampOf, shadeStep } from '../../../core/edit'
 import { cloneFrame, expandFrame, Frame, trimFrame } from '../../../core/sprite'
 import { paletteToHex } from '../../../core/palette'
+import { linePoints, polygonSelection, rectSelection, unionSelection } from '../selectionShapes'
 import {
   activeSprite,
   applyToScope,
@@ -18,6 +19,8 @@ import {
   moveFloating,
   originalFrame,
   palette,
+  pixLassoAdd,
+  pixLassoUndo,
   selectionContains,
   Selection,
   setFrameLive,
@@ -67,80 +70,6 @@ function pixelAt(f: Frame | null, x: number, y: number): number {
   return lx >= 0 && ly >= 0 && lx < f.width && ly < f.height ? f.pixels[ly * f.width + lx] : 0
 }
 
-function linePoints(x0: number, y0: number, x1: number, y1: number): [number, number][] {
-  const pts: [number, number][] = []
-  const dx = Math.abs(x1 - x0)
-  const dy = -Math.abs(y1 - y0)
-  const sx = x0 < x1 ? 1 : -1
-  const sy = y0 < y1 ? 1 : -1
-  let err = dx + dy
-  for (;;) {
-    pts.push([x0, y0])
-    if (x0 === x1 && y0 === y1) break
-    const e2 = 2 * err
-    if (e2 >= dy) {
-      err += dy
-      x0 += sx
-    }
-    if (e2 <= dx) {
-      err += dx
-      y0 += sy
-    }
-  }
-  return pts
-}
-
-/** Selection mask from a polygon (lasso), sprite space. */
-function polygonSelection(pts: { x: number; y: number }[]): Selection | null {
-  if (pts.length < 3) return null
-  const x0 = Math.min(...pts.map((p) => p.x))
-  const y0 = Math.min(...pts.map((p) => p.y))
-  const x1 = Math.max(...pts.map((p) => p.x)) + 1
-  const y1 = Math.max(...pts.map((p) => p.y)) + 1
-  const w = x1 - x0
-  const h = y1 - y0
-  const mask = new Uint8Array(w * h)
-  for (let y = 0; y < h; y++)
-    for (let x = 0; x < w; x++) {
-      const px = x0 + x + 0.5
-      const py = y0 + y + 0.5
-      let inside = false
-      for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
-        const a = pts[i]
-        const b = pts[j]
-        if (a.y + 0.5 > py !== b.y + 0.5 > py && px < ((b.x - a.x) * (py - a.y - 0.5)) / (b.y - a.y || 1e-9) + a.x + 0.5) inside = !inside
-      }
-      if (inside) mask[y * w + x] = 1
-    }
-  // include the outline itself
-  for (let i = 0; i < pts.length; i++) {
-    const a = pts[i]
-    const b = pts[(i + 1) % pts.length]
-    for (const [x, y] of linePoints(a.x, a.y, b.x, b.y)) mask[(y - y0) * w + (x - x0)] = 1
-  }
-  return { x0, y0, w, h, mask }
-}
-
-function rectSelection(a: { x: number; y: number }, b: { x: number; y: number }): Selection {
-  const x0 = Math.min(a.x, b.x)
-  const y0 = Math.min(a.y, b.y)
-  const w = Math.abs(a.x - b.x) + 1
-  const h = Math.abs(a.y - b.y) + 1
-  return { x0, y0, w, h, mask: new Uint8Array(w * h).fill(1) }
-}
-
-function unionSelection(a: Selection | null, b: Selection | null): Selection | null {
-  if (!a) return b
-  if (!b) return a
-  const x0 = Math.min(a.x0, b.x0)
-  const y0 = Math.min(a.y0, b.y0)
-  const w = Math.max(a.x0 + a.w, b.x0 + b.w) - x0
-  const h = Math.max(a.y0 + a.h, b.y0 + b.h) - y0
-  const mask = new Uint8Array(w * h)
-  for (const s of [a, b]) for (let y = 0; y < s.h; y++) for (let x = 0; x < s.w; x++) if (s.mask[y * s.w + x]) mask[(s.y0 + y - y0) * w + (s.x0 + x - x0)] = 1
-  return { x0, y0, w, h, mask }
-}
-
 const imageCache = new Map<string, HTMLImageElement>()
 function refImage(url: string, onLoad: () => void): HTMLImageElement | null {
   let img = imageCache.get(url)
@@ -158,6 +87,7 @@ type Drag =
   | { kind: 'lasso'; points: { x: number; y: number }[]; add: boolean }
   | { kind: 'moveFloat'; last: { x: number; y: number } }
   | { kind: 'moveRef'; last: { x: number; y: number } }
+  | { kind: 'pixTrace' }
 
 export function PixelCanvas() {
   const doc = useStore((s) => s.doc)
@@ -172,6 +102,7 @@ export function PixelCanvas() {
   const reference = useStore((s) => s.reference)
   const showOriginal = useStore((s) => s.showOriginal)
   const tool = useStore((s) => s.tool)
+  const pixLasso = useStore((s) => s.pixLasso)
   const tintOn = useStore((s) => s.view.tint && !!s.colormap && !!s.tintCode)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [hover, setHover] = useState<{ x: number; y: number } | null>(null)
@@ -188,6 +119,11 @@ export function PixelCanvas() {
     stage: Stage
     visited: Set<number>
   } | null>(null)
+
+  // A half-traced pixel lasso is dropped when another tool is picked
+  useEffect(() => {
+    if (tool !== 'pixlasso' && getState().pixLasso) setState({ pixLasso: null })
+  }, [tool])
 
   // Floating pixels belong to one frame: place them if the user moves to another frame/layer
   useEffect(() => {
@@ -341,6 +277,28 @@ export function PixelCanvas() {
       ctx.stroke()
       ctx.setLineDash([])
     }
+    // Pixel lasso being traced: the outline so far, a preview to the cursor, and the first pixel (click it to close)
+    if (pixLasso) {
+      const pts = pixLasso.points
+      const cell = (x: number, y: number) => ctx.fillRect((x - stage.x0) * zoom, (y - stage.y0) * zoom, zoom, zoom)
+      ctx.fillStyle = 'rgba(90,209,255,0.55)'
+      for (let i = 0; i < pts.length; i++) {
+        const a = pts[i]
+        const b = pts[i + 1] ?? a
+        for (const [x, y] of linePoints(a.x, a.y, b.x, b.y)) cell(x, y)
+      }
+      const last = pts[pts.length - 1]
+      if (hover && (hover.x !== last.x || hover.y !== last.y)) {
+        ctx.fillStyle = 'rgba(90,209,255,0.25)'
+        for (const [x, y] of linePoints(last.x, last.y, hover.x, hover.y).slice(1)) cell(x, y)
+      }
+      const first = pts[0]
+      const closing = hover && pts.length >= 3 && hover.x === first.x && hover.y === first.y
+      ctx.strokeStyle = closing ? '#7dff8a' : '#fff'
+      ctx.lineWidth = 2
+      ctx.strokeRect((first.x - stage.x0) * zoom - 1, (first.y - stage.y0) * zoom - 1, zoom + 2, zoom + 2)
+      ctx.lineWidth = 1
+    }
     if (floating) {
       ctx.strokeStyle = '#5ad1ff'
       ctx.setLineDash([5, 3])
@@ -367,7 +325,7 @@ export function PixelCanvas() {
       const r0 = -Math.floor((size - 1) / 2)
       ctx.strokeRect((hover.x + r0 - stage.x0) * zoom + 0.5, (hover.y + r0 - stage.y0) * zoom + 0.5, size * zoom - 1, size * zoom - 1)
     }
-  }, [doc, version, zoom, dir, frame, view, paletteName, tintOn, hover, stage, W, H, selection, floating, reference, showOriginal, tick])
+  }, [doc, version, zoom, dir, frame, view, paletteName, tintOn, hover, stage, W, H, selection, floating, reference, showOriginal, tick, pixLasso])
 
   const toSprite = (e: React.MouseEvent | MouseEvent) => {
     const r = canvasRef.current!.getBoundingClientRect()
@@ -493,6 +451,14 @@ export function PixelCanvas() {
       setTick((t) => t + 1)
       return
     }
+    if (s.tool === 'pixlasso') {
+      // Left: add pixels (click, or hold and drag over them); right: take back the last one
+      if (e.button === 2) return pixLassoUndo()
+      if (!s.pixLasso) commitFloating()
+      pixLassoAdd(p, e.shiftKey)
+      drag.current = { kind: 'pixTrace' }
+      return
+    }
     if (s.tool === 'lasso') {
       commitFloating()
       drag.current = { kind: 'lasso', points: [p], add: e.shiftKey }
@@ -587,6 +553,8 @@ export function PixelCanvas() {
         const last = dg.points[dg.points.length - 1]
         if (last.x !== p.x || last.y !== p.y) dg.points.push(p)
         setTick((t) => t + 1)
+      } else if (dg.kind === 'pixTrace') {
+        if (getState().pixLasso) pixLassoAdd(p)
       } else if (dg.kind === 'moveFloat') {
         if (p.x !== dg.last.x || p.y !== dg.last.y) moveFloating(p.x - dg.last.x, p.y - dg.last.y)
         dg.last = p
@@ -643,6 +611,7 @@ export function PixelCanvas() {
           ) : null}
           {selection && !floating ? `  ·  selection ${selection.w}×${selection.h}` : ''}
           {floating ? '  ·  moving pixels: drag them, then press Enter to place (Esc cancels)' : ''}
+          {pixLasso ? `  ·  outline ${pixLasso.points.length} point${pixLasso.points.length === 1 ? '' : 's'}: click the first pixel or press Enter to close` : ''}
         </span>
         <span>
           {view.diff ? <span className="diffcount">{diffCount} px changed · </span> : null}

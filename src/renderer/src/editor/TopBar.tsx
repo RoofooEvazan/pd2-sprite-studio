@@ -47,8 +47,8 @@ export function TopBar({ onSettings }: { onSettings: () => void }) {
           </>
         ) : (
           <>
-            <button className="crumb" onClick={() => goTo('items')}>
-              Items
+            <button className="crumb" onClick={() => goTo(doc.tile ? 'dt1' : 'items')}>
+              {doc.tile ? 'Map tiles' : 'Items'}
             </button>
             <IconChevronRight size={14} className="muted" />
             <span className="crumb current">{doc.title}</span>
